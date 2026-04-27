@@ -1,0 +1,1392 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"/>
+<title>Sistema Financiero</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#fff;--bg2:#f7f7f5;--txt:#1a1915;--txt2:#6b6b5e;--txt3:#a0a092;
+  --brd:#e5e5df;--brd2:#d4d4cc;--teal:#1D9E75;--blue:#378ADD;--amber:#BA7517;--coral:#D85A30;
+  --ok-bg:#e8f5ee;--ok-txt:#1a6b3a;--warn-bg:#fef3e2;--warn-txt:#92520a;
+  --danger-bg:#fdeaea;--danger-txt:#a01a1a;--info-bg:#e8f0fb;--info-txt:#1a4a8a;
+  --debit-bg:#f0f4ff;--debit-txt:#2d4fa0;--pse-bg:#f5f0ff;--pse-txt:#5b2da0;
+  --cash-bg:#f5f5f2;--cash-txt:#5a5a4e;--crypto-bg:#fff8e8;--crypto-txt:#7a5500;
+  --success:#1D9E75;--danger:#c0392b;--warning:#d68a10;
+  --r-sm:6px;--r-md:8px;--r-lg:12px;--shadow:0 1px 4px rgba(0,0,0,.06);--bnav:68px;
+  --header-bg:linear-gradient(135deg,#0d1a2e 0%,#0f2444 60%,#0d1a2e 100%);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+}
+body{background:var(--bg2);color:var(--txt);min-height:100vh}
+#root{max-width:980px;margin:0 auto;padding:1rem 1rem 2rem}
+input,select{font:inherit;padding:8px 10px;border:.5px solid var(--brd2);border-radius:var(--r-sm);background:var(--bg);color:var(--txt);font-size:14px;width:100%;min-height:40px;box-sizing:border-box}
+input:focus,select:focus{outline:1.5px solid var(--teal)}
+button{font:inherit;cursor:pointer;min-height:36px}
+.bnav{display:none}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+@keyframes fadeIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+@media(max-width:660px){
+  #root{padding:.75rem .75rem calc(var(--bnav)+1rem)}
+  input,select{font-size:16px!important;min-height:44px}button{min-height:44px}
+  .hide-sm{display:none!important}.top-nav{display:none!important}
+  .bnav{display:flex;position:fixed;bottom:0;left:0;right:0;height:var(--bnav);background:var(--bg);border-top:.5px solid var(--brd);padding:6px 4px env(safe-area-inset-bottom,0px);z-index:200;overflow-x:auto;gap:2px;box-shadow:0 -2px 14px rgba(0,0,0,.09);}
+  .bnav button{flex:1;min-width:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;border:none;background:transparent;font-size:9px;color:var(--txt2);padding:4px 2px;min-height:unset;border-radius:var(--r-md)}
+  .bnav button.on{color:var(--teal);background:var(--ok-bg)}
+  .nav-icon{font-size:19px;line-height:1}h1{font-size:15px!important}
+}
+::-webkit-scrollbar{width:5px;height:5px}::-webkit-scrollbar-thumb{background:var(--brd2);border-radius:3px}
+</style>
+</head>
+<body><div id="root"></div>
+<script>
+// --- FUNCIONES DE NUBE ---
+// Función para generar o recuperar el ID único de cada persona
+const getUserId = () => {
+  let id = localStorage.getItem('sfi_user_id');
+  
+  // Si no existe un ID guardado en este navegador, lo solicita
+  if (!id) {
+    id = prompt("Bienvenido a Sheena Financial.\nPor favor, ingresa tu número de identificación nacional (Cédula) para sincronizar tus datos:");
+    
+    // Validación: si no ingresa nada, genera un ID temporal para evitar errores
+    if (!id || id.trim() === "") {
+      alert("No ingresaste un ID. Usaremos uno temporal. Para cambiarlo, limpia los datos del navegador.");
+      id = 'temp_' + Math.random().toString(36).substr(2, 9);
+    }
+    
+    // Guarda el ID (Cédula) de forma permanente en este navegador
+    localStorage.setItem('sfi_user_id', id.trim());
+  }
+  return id;
+};
+// IMPORTANTE: Debes poner tus valores reales aquí para que funcione
+const CLOUD_API_URL = "https://script.google.com/macros/s/AKfycbyhF_-AIGY0FleMAdWfGMxMfYp8Ze1auOVgzo_O8KLQXu3R1u5PX-gYaWoeXF7FpDhJ/exec"; 
+const CLOUD_TOKEN = "Sheena2025";
+
+async function syncDataToSheets(appData) {
+  try {
+    const payload = { 
+      token: CLOUD_TOKEN, 
+      action: "SAVE", 
+      userId: getUserId(), 
+      payload: appData 
+    };
+
+    const formData = new URLSearchParams();
+    formData.append("json", JSON.stringify(payload)); // <-- IMPORTANTE: el nombre 'json'
+
+    await fetch(CLOUD_API_URL, {
+      method: "POST",
+      mode: "no-cors", 
+      body: formData
+    });
+
+    console.log("✅ Sincronización enviada para: " + getUserId());
+  } catch (error) {
+    console.error("❌ Error:", error);
+  }
+}
+async function loadDataFromSheets() {
+  try {
+    // Le pedimos a Google los datos filtrando por nuestro ID único
+    const response = await fetch(`${CLOUD_API_URL}?userId=${getUserId()}`);
+    const remoteData = await response.json();
+    
+    if (remoteData && remoteData.movimientos) {
+      if (confirm("¿Deseas recuperar TUS datos guardados en la nube?")) {
+        localStorage.setItem('sfi_v11', JSON.stringify(remoteData));
+        window.location.reload(); 
+      }
+    } else {
+      alert("No se encontraron datos previos para tu usuario en la nube.");
+    }
+  } catch (error) {
+    console.error("Error al cargar:", error);
+    alert("Aún no tienes datos guardados o hay un error de conexión.");
+  }
+}
+// <--- Aquí faltaba esta llave y las anteriores
+// --- Seleccionar todo al hacer foco en inputs numéricos ---
+document.addEventListener('focusin', e => {
+  if (e.target.tagName === 'INPUT' && e.target.type === 'number') {
+    e.target.select();
+  }
+});
+const {createElement:h,Fragment,useState,useEffect,useMemo,useRef,createContext,useContext,useReducer}=React;
+const mk=t=>(p,...c)=>h(t,p,...c);
+const DIV=mk('div'),SPAN=mk('span'),P=mk('p'),INP=mk('input'),SEL=mk('select'),OPT=mk('option');
+const BTN=mk('button'),LBL=mk('label'),CNV=mk('canvas');
+const TABLE=mk('table'),THEAD=mk('thead'),TBODY=mk('tbody'),TFOOT=mk('tfoot'),TR=mk('tr'),TH=mk('th'),TD=mk('td');
+
+// ── Utils ──────────────────────────────────────────────────────────────────
+const pmt=(r,n,pv)=>r===0?pv/n:Math.abs(r*pv/(1-Math.pow(1+r,-n)));
+const mrFn=ea=>Math.pow(1+ea,1/12)-1;
+const cop=n=>new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(Math.round(n||0));
+const pct=n=>((n||0)*100).toFixed(1)+'%';
+const MON=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const MON_FULL=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const PAL=['#1D9E75','#378ADD','#BA7517','#D85A30','#639922','#D4537E','#F7941D','#888780'];
+const MEDIOS_GASTO=['Efectivo','PSE','Transferencia','Tarjeta Crédito','Tarjeta Débito'];
+const MEDIOS_INGRESO=['Efectivo','Ingreso Cuenta Bancaria','Transferencia'];
+const MEDIOS_ALL=['Efectivo','Ingreso Cuenta Bancaria','PSE','Transferencia','Tarjeta Crédito','Tarjeta Débito'];
+const getMedios=tipo=>tipo==='Ingreso'?MEDIOS_INGRESO:MEDIOS_GASTO;
+const TIPOS_MOV=['Ingreso','Gasto','Ahorro','Inversión','Transferencia'];
+const CATS=['Salario','Vivienda','Alimentación','Transporte','Salud','Educación','Vestuario','Entretenim.','Servicios','Seguridad Social','Tecnología','Cuota crédito','Plataformas Pedidos','Streaming','Otros'];
+const BANCOS_CO=['Bancolombia','Banco de Bogotá','Davivienda','BBVA Colombia','Banco Popular','Banco de Occidente','Banco Caja Social','Banco Falabella','Banco Itaú','Banco Pichincha','Banco AV Villas','Nu Colombia','Nequi','Lulo Bank','Rappipay','Uala','Banco W','Bancamía','Confiar','Coopcentral','Serfinanza','Banco Finandina'];
+const MARCAS_TC=['Visa Classic','Visa Gold','Visa Platinum','Visa Signature','Visa Infinite','Mastercard Classic','Mastercard Gold','Mastercard Platinum','Mastercard Black','Mastercard World Elite','American Express Green','American Express Gold','American Express Platinum','American Express Centurion','Diners Club Classic','Diners Club Exclusive','Diners Club Infinite','Éxito Mastercard','Alkosto Mastercard','Codensa Mastercard','Tuya Visa (Homecenter)','CMR Falabella Mastercard','Nequi Mastercard','Nu Mastercard','Rappi Mastercard','Lulo Mastercard','Bancolombia Visa Gold','Bancolombia Mastercard','Davivienda Visa','Bogotá Mastercard','Otro'];
+const CRYPTO_LIST=[{symbol:'BTC',nombre:'Bitcoin'},{symbol:'ETH',nombre:'Ethereum'},{symbol:'BNB',nombre:'BNB'},{symbol:'SOL',nombre:'Solana'},{symbol:'XRP',nombre:'XRP (Ripple)'}];
+const TAB_ICONS={dashboard:'📊',creditos:'💳',gastos:'🧾',movimientos:'📝',ahorro:'🎯',inversiones:'📈',motor:'⚡',config:'⚙️'};
+const TAB_LABELS={dashboard:'Inicio',creditos:'Créditos',gastos:'Gastos',movimientos:'Movtos.',ahorro:'Ahorro',inversiones:'Invertir',motor:'Motor',config:'Config'};
+const TIPOS_CREDITO=[
+  {id:'Tarjeta de Crédito',icon:'💳',colorS:'danger',desc:'Cupo rotativo · pago mínimo mensual'},
+  {id:'Libre Inversión',  icon:'💰',colorS:'info',  desc:'Préstamo a cuota fija'},
+  {id:'Hipotecario',      icon:'🏠',colorS:'ok',    desc:'Crédito de vivienda'},
+  {id:'Vehículo',         icon:'🚗',colorS:'warn',  desc:'Financiación de vehículo'},
+  {id:'Educativo / ICETEX',icon:'📚',colorS:'info', desc:'Crédito educativo'},
+  {id:'Libranza',         icon:'📋',colorS:'info',  desc:'Descuento directo de nómina'},
+  {id:'Microcrédito',     icon:'🔸',colorS:'warn',  desc:'Crédito de bajo monto'},
+  {id:'Crédito Digital',  icon:'📱',colorS:'info',  desc:'Nequi · RapiCredit · Addi'},
+  {id:'Fondo de Empleados',icon:'🤝',colorS:'ok',   desc:'Fondo · Cooperativa'},
+  {id:'Crédito de Nómina',icon:'💼',colorS:'info',  desc:'Crédito sobre nómina'},
+  {id:'Deuda Personal',   icon:'👤',colorS:'danger',desc:'Deuda con persona natural'},
+];
+const getTC=tipo=>TIPOS_CREDITO.find(t=>t.id===tipo)||TIPOS_CREDITO[1];
+
+// ── Storage ────────────────────────────────────────────────────────────────
+const SKEY='sfi_v11',OKEY='sfi_ob3';
+const saveLS=d=>{try{localStorage.setItem(SKEY,JSON.stringify(d));}catch(e){}};
+const loadLS=()=>{try{const r=localStorage.getItem(SKEY);return r?JSON.parse(r):null;}catch(e){return null;}};
+const wasOnboarded=()=>{try{return localStorage.getItem(OKEY)==='1';}catch(e){return false;}};
+const markOnboarded=()=>{try{localStorage.setItem(OKEY,'1');}catch(e){}};
+
+const DEF={
+  params:{salarioBase:3500000,pctSS:0.12,ingAdicional:200000,trm:4100,inflacion:0.065},
+  creditos:[
+    {id:1,tipoProducto:'Fondo de Empleados',  nombre:'Préstamo Fondo',  nombreMarca:'',         entidad:'Fondo Empleados',saldo:2604000,tasaEA:.18,cuotasTotales:32,cuotasPagadas:8,abono:0,abonoTipo:'mensual',cupoTotal:0},
+    {id:2,tipoProducto:'Tarjeta de Crédito',  nombre:'Visa Gold',       nombreMarca:'Visa Gold', entidad:'Banco Popular',  saldo:1500000,tasaEA:.28,cuotasTotales:0, cuotasPagadas:0,abono:0,abonoTipo:'mensual',cupoTotal:3000000},
+    {id:3,tipoProducto:'Tarjeta de Crédito',  nombre:'Mastercard Gold', nombreMarca:'Mastercard Gold',entidad:'Davivienda',saldo:800000, tasaEA:.26,cuotasTotales:0, cuotasPagadas:0,abono:0,abonoTipo:'mensual',cupoTotal:2000000},
+  ],
+  ahorro:{saldoInicial:800000,cuota:36000,meta:5000000,tasaEA:.04},
+  categorias:[
+    {nombre:'Vivienda',           tipo:'Fijo',    presupuesto:900000},
+    {nombre:'Alimentación',       tipo:'Variable',presupuesto:600000},
+    {nombre:'Transporte',         tipo:'Variable',presupuesto:250000},
+    {nombre:'Salud',              tipo:'Variable',presupuesto:200000},
+    {nombre:'Educación',          tipo:'Variable',presupuesto:300000},
+    {nombre:'Vestuario',          tipo:'Variable',presupuesto:150000},
+    {nombre:'Entretenim.',        tipo:'Variable',presupuesto:100000},
+    {nombre:'Servicios',          tipo:'Fijo',    presupuesto:180000},
+    {nombre:'Tecnología',         tipo:'Variable',presupuesto:80000},
+    {nombre:'Plataformas Pedidos',tipo:'Variable',presupuesto:80000},
+    {nombre:'Streaming',          tipo:'Variable',presupuesto:50000},
+  ],
+  movimientos:[
+    {id:1, fecha:'2025-01-01',tipo:'Ingreso',categoria:'Salario',     desc:'Salario enero',  monto:3500000,medioPago:'Efectivo',       creditoId:null},
+    {id:2, fecha:'2025-01-05',tipo:'Gasto',  categoria:'Vivienda',    desc:'Arriendo',       monto:900000, medioPago:'PSE',             creditoId:null},
+    {id:3, fecha:'2025-02-01',tipo:'Ingreso',categoria:'Salario',     desc:'Salario febrero',monto:3500000,medioPago:'Efectivo',       creditoId:null},
+    {id:4, fecha:'2025-02-08',tipo:'Gasto',  categoria:'Vivienda',    desc:'Arriendo',       monto:900000, medioPago:'PSE',             creditoId:null},
+    {id:5, fecha:'2025-03-01',tipo:'Ingreso',categoria:'Salario',     desc:'Salario marzo',  monto:3500000,medioPago:'Efectivo',       creditoId:null},
+    {id:6, fecha:'2025-03-07',tipo:'Gasto',  categoria:'Vivienda',    desc:'Arriendo',       monto:900000, medioPago:'PSE',             creditoId:null},
+    {id:7, fecha:'2025-03-14',tipo:'Gasto',  categoria:'Salud',       desc:'Médico',         monto:150000, medioPago:'Tarjeta Débito',  creditoId:null},
+  ],
+  efectivo:500000,
+  inversiones:{
+    cdts:[{id:1,entidad:'Bancolombia',monto:500000,tasaEA:.115,plazoMeses:6,fechaInicio:'2025-01-01'}],
+    dolares:[{id:1,desc:'Ahorro USD',cantidadUSD:50,trmCompra:4050}],
+    acciones:[
+      {id:1,ticker:'PFBCOLOM',mercado:'BVC',nombre:'Bancolombia Pref.',precioCompra:28500,precioActual:29800,cantidad:5,dividendosCOP:0},
+      {id:2,ticker:'ECOPETL', mercado:'BVC',nombre:'Ecopetrol',        precioCompra:2100, precioActual:1980, cantidad:50,dividendosCOP:0},
+    ],
+    crypto:[
+      {id:1,symbol:'BTC',nombre:'Bitcoin', cantidadUnits:0.001,precioCompraUSD:60000,precioActualUSD:67000},
+      {id:2,symbol:'ETH',nombre:'Ethereum',cantidadUnits:0.05, precioCompraUSD:3000, precioActualUSD:3500},
+    ],
+    nextId:10,
+  },
+  nextMovId:8,nextCredId:4,
+};
+
+// ── Auto-saldo helper ──────────────────────────────────────────────────────
+function applyMovEffect(creditos,mov,sign){
+  if(!mov||!mov.creditoId) return creditos;
+  const isTCBuy=mov.tipo==='Gasto'&&mov.medioPago==='Tarjeta Crédito';
+  const isPayment=mov.categoria==='Cuota crédito';
+  if(!isTCBuy&&!isPayment) return creditos;
+  return creditos.map(c=>{
+    if(c.id!==mov.creditoId) return c;
+    const delta=isTCBuy ? sign*mov.monto : -sign*mov.monto;
+    return {...c,saldo:Math.max(0,c.saldo+delta)};
+  });
+}
+
+// ── Context & Reducer ──────────────────────────────────────────────────────
+const AppCtx=createContext(null);
+const useApp=()=>useContext(AppCtx);
+function reducer(state,{type,...p}){
+  const ui=patch=>({...state,inversiones:{...state.inversiones,...patch}});
+  switch(type){
+    case 'UPD_PARAM':    return {...state,params:{...state.params,[p.key]:p.val}};
+    case 'UPD_EFECTIVO': return {...state,efectivo:p.val};
+    case 'UPD_CAT':      return {...state,categorias:state.categorias.map(c=>c.nombre===p.nombre?{...c,presupuesto:p.val}:c)};
+    case 'UPD_AHORRO':   return {...state,ahorro:{...state.ahorro,[p.key]:p.val}};
+    case 'UPD_CRED':     return {...state,creditos:state.creditos.map(c=>c.id===p.id?{...c,[p.key]:p.str?p.val:(parseFloat(p.val)||0)}:c)};
+    case 'ADD_CRED':     return {...state,creditos:[...state.creditos,{...p.cred,id:state.nextCredId}],nextCredId:state.nextCredId+1};
+    case 'DEL_CRED':     return {...state,creditos:state.creditos.filter(c=>c.id!==p.id)};
+    case 'ADD_MOV':{
+      const mov={...p.mov,id:state.nextMovId};
+      return{...state,movimientos:[mov,...state.movimientos],nextMovId:state.nextMovId+1,creditos:applyMovEffect(state.creditos,mov,+1)};
+    }
+    case 'DEL_MOV':{
+      const mov=state.movimientos.find(m=>m.id===p.id);
+      return{...state,movimientos:state.movimientos.filter(m=>m.id!==p.id),creditos:applyMovEffect(state.creditos,mov,-1)};
+    }
+    case 'SAVE_MOV':{
+      const oldMov=state.movimientos.find(m=>m.id===p.id);
+      const newMov={...oldMov,...p.data};
+      let creds=applyMovEffect(state.creditos,oldMov,-1);
+      creds=applyMovEffect(creds,newMov,+1);
+      return{...state,movimientos:state.movimientos.map(m=>m.id===p.id?{...m,...p.data}:m),creditos:creds};
+    }
+    case 'ADD_CDT':      return ui({cdts:[...state.inversiones.cdts,{...p.cdt,id:state.inversiones.nextId}],nextId:state.inversiones.nextId+1});
+    case 'DEL_CDT':      return ui({cdts:state.inversiones.cdts.filter(c=>c.id!==p.id)});
+    case 'ADD_DOLAR':    return ui({dolares:[...state.inversiones.dolares,{...p.d,id:state.inversiones.nextId}],nextId:state.inversiones.nextId+1});
+    case 'DEL_DOLAR':    return ui({dolares:state.inversiones.dolares.filter(d=>d.id!==p.id)});
+    case 'ADD_ACCION':   return ui({acciones:[...state.inversiones.acciones,{...p.a,id:state.inversiones.nextId}],nextId:state.inversiones.nextId+1});
+    case 'DEL_ACCION':   return ui({acciones:state.inversiones.acciones.filter(a=>a.id!==p.id)});
+    case 'UPD_ACCION':   return ui({acciones:state.inversiones.acciones.map(a=>a.id===p.id?{...a,[p.key]:p.val}:a)});
+    case 'ADD_CRYPTO':   return ui({crypto:[...state.inversiones.crypto,{...p.c,id:state.inversiones.nextId}],nextId:state.inversiones.nextId+1});
+    case 'DEL_CRYPTO':   return ui({crypto:state.inversiones.crypto.filter(c=>c.id!==p.id)});
+    case 'UPD_CRYPTO':   return ui({crypto:state.inversiones.crypto.map(c=>c.id===p.id?{...c,[p.key]:p.val}:c)});
+    case 'RESET':        return DEF;
+    default:             return state;
+  }
+}
+
+// ── Calc ───────────────────────────────────────────────────────────────────
+function calcAll(data){
+  const{params,creditos,ahorro,categorias,inversiones,efectivo}=data;
+  const descSS=params.salarioBase*params.pctSS;
+  const ingresoNeto=params.salarioBase-descSS+params.ingAdicional;
+  const creditosCalc=creditos.filter(c=>c.saldo>0).map(c=>{
+    const isDP=(c.tipoProducto||'')==='Deuda Personal';
+    const isTC=(c.tipoProducto||'')==='Tarjeta de Crédito';
+    const rate=mrFn(isDP?0:c.tasaEA);
+    const cuotasT=c.cuotasTotales||0,cuotasP=c.cuotasPagadas||0;
+    const rest=cuotasT>0?Math.max(1,cuotasT-cuotasP):0;
+    const base=isTC&&cuotasT===0?Math.max(c.saldo*(rate+0.01),50000):pmt(rate,Math.max(1,rest||36),c.saldo);
+    const abonoMensual=(c.abonoTipo||'mensual')==='mensual'?(c.abono||0):0;
+    return{...c,rate,cuotasRestantes:rest,cuotaBase:base,cuotaTotal:base+abonoMensual,isTC,isDP,cupoTotal:c.cupoTotal||0,abonoTipo:c.abonoTipo||'mensual'};
+  });
+  const deudaTotal=creditosCalc.reduce((s,c)=>s+c.saldo,0);
+  const cuotasTotal=creditosCalc.reduce((s,c)=>s+c.cuotaTotal,0);
+  const dti=ingresoNeto>0?cuotasTotal/ingresoNeto:0;
+  let s=ahorro.saldoInicial;const aR=mrFn(ahorro.tasaEA);
+  const ahorroProj=Array.from({length:13},(_,i)=>{const v={mes:i,saldo:Math.round(s)};if(i<12)s=s*(1+aR)+ahorro.cuota;return v;});
+  const saldoAhorroActual=ahorroProj[0].saldo;
+  const gastosTotal=categorias.reduce((a,c)=>a+c.presupuesto,0);
+  const flujoCaja=ingresoNeto-gastosTotal-cuotasTotal;
+  const totalCDT=inversiones.cdts.reduce((s,c)=>{const d=Math.max(0,(Date.now()-new Date(c.fechaInicio))/864e5);return s+c.monto*Math.pow(1+c.tasaEA,d/365);},0);
+  const totalDolares=inversiones.dolares.reduce((s,d)=>s+d.cantidadUSD*params.trm,0);
+  const totalAcciones=inversiones.acciones.reduce((s,a)=>s+a.precioActual*a.cantidad,0);
+  const totalCrypto=(inversiones.crypto||[]).reduce((s,c)=>s+c.cantidadUnits*c.precioActualUSD*params.trm,0);
+  const totalPortafolio=totalCDT+totalDolares+totalAcciones+totalCrypto;
+  const patrimonioNeto=saldoAhorroActual+efectivo+totalPortafolio-deudaTotal;
+  return{ingresoNeto,creditosCalc,deudaTotal,cuotasTotal,dti,ahorroProj,saldoAhorroActual,gastosTotal,flujoCaja,patrimonioNeto,totalPortafolio,totalCDT,totalDolares,totalAcciones,totalCrypto};
+}
+
+// ── Amortization (ocasional support) ──────────────────────────────────────
+function computeSched(saldo,rate,cuotaBase,extraPago,maxRows,ocasional=false){
+  if(!saldo||cuotaBase<=0)return[];
+  const rows=[];let s=saldo;
+  for(let i=1;s>0.5&&i<=maxRows;i++){
+    const ep=ocasional?(i===1?extraPago:0):extraPago;
+    const interes=s*rate,cuota=Math.min(cuotaBase+ep,s+interes),cap=Math.max(0,cuota-interes),sf=Math.max(0,s-cap);
+    rows.push({p:i,s:Math.round(s),q:Math.round(cuota),i:Math.round(interes),k:Math.round(cap),sf:Math.round(sf)});
+    s=sf;
+  }
+  return rows;
+}
+
+function computeHistorical(movimientos){
+  const months={};
+  movimientos.forEach(m=>{const key=m.fecha.substring(0,7);if(!months[key])months[key]={ingreso:0,gasto:0};if(m.tipo==='Ingreso')months[key].ingreso+=m.monto;if(m.tipo==='Gasto')months[key].gasto+=m.monto;});
+  return Object.entries(months).sort(([a],[b])=>a.localeCompare(b)).slice(-12).map(([key,v])=>{const[y,m]=key.split('-');return{key,label:`${MON[parseInt(m)-1]}'${y.slice(2)}`,ingreso:v.ingreso,gasto:v.gasto,neto:v.ingreso-v.gasto};});
+}
+
+function suggestCuts(categorias,excess){
+  if(excess<=0)return[];
+  const vars=[...categorias].filter(c=>c.tipo==='Variable'&&c.presupuesto>0).sort((a,b)=>b.presupuesto-a.presupuesto);
+  let rem=excess;const cuts=[];
+  for(const cat of vars){if(rem<=0)break;const corte=Math.min(Math.round(cat.presupuesto*.4),rem);if(corte>0){cuts.push({nombre:cat.nombre,actual:cat.presupuesto,corte,sugerido:cat.presupuesto-corte});rem-=corte;}}
+  return cuts;
+}
+
+const RULES=[
+  {id:'presupuesto',evaluate(calc,data){
+    const pres=data.categorias.reduce((s,c)=>s+c.presupuesto,0),ing=calc.ingresoNeto,diff=pres-ing;
+    if(diff>0){const cuts=suggestCuts(data.categorias,diff);const lista=cuts.map(c=>`${c.nombre}: ${cop(c.actual)}→${cop(c.sugerido)}`).join(' · ');
+      return{emoji:'🚫',title:'Presupuesto excede ingresos',status:'danger',desc:`Presupuesto (${cop(pres)}) supera ingreso neto (${cop(ing)}) en ${cop(diff)}.`,accion:`Reduce: ${lista||'Ajusta categorías variables.'}`,cuts};}
+    if(diff>-ing*.1)return{emoji:'⚠️',title:'Presupuesto ajustado',status:'warn',desc:`Libre: ${cop(Math.abs(diff))}.`,accion:`Meta: liberar al menos el 10% (${cop(ing*.1)}).`,cuts:[]};
+    return{emoji:'✅',title:'Presupuesto balanceado',status:'ok',desc:`Libre: ${cop(Math.abs(diff))} (${pct(Math.abs(diff)/ing)}).`,accion:'Incrementa el ahorro con el excedente.',cuts:[]};
+  }},
+  {id:'dti',evaluate(calc){
+    const peor=[...calc.creditosCalc].sort((a,b)=>b.tasaEA-a.tasaEA)[0];
+    const accion=peor?`Concentra excedente en "${peor.nombre}" (${pct(peor.tasaEA)} EA).`:'Suspende nuevas deudas.';
+    if(calc.dti>.45)return{emoji:'🚨',title:'DTI crítico',status:'danger',desc:`DTI ${pct(calc.dti)} — cuotas ${cop(calc.cuotasTotal)}/mes.`,accion,cuts:[]};
+    if(calc.dti>.30)return{emoji:'⚠️',title:'Deuda moderada',status:'warn',desc:`DTI ${pct(calc.dti)} en zona de alerta.`,accion,cuts:[]};
+    return{emoji:'✅',title:'Deuda bajo control',status:'ok',desc:`DTI ${pct(calc.dti)} — menor al 30%.`,accion:'Prepaga el crédito de mayor tasa.',cuts:[]};
+  }},
+  {id:'flujo',evaluate(calc){
+    const f=calc.flujoCaja;
+    if(f<0)return{emoji:'🔴',title:'Déficit mensual',status:'danger',desc:`Gastas ${cop(Math.abs(f))} más de lo que ingresas.`,accion:`Reduce gastos en ${cop(Math.abs(f)+100000)}/mes.`,cuts:[]};
+    if(f<500000)return{emoji:'🟡',title:'Flujo ajustado',status:'warn',desc:`Excedente de solo ${cop(f)}/mes.`,accion:`Meta: colchón de ${cop(500000)}/mes.`,cuts:[]};
+    return{emoji:'💚',title:'Flujo positivo',status:'ok',desc:`Excedente de ${cop(f)}/mes.`,accion:`${cop(f*.5)} a deuda · ${cop(f*.5)} a inversiones.`,cuts:[]};
+  }},
+  {id:'emergencia',evaluate(calc,data){
+    const gm=data.categorias.reduce((s,c)=>s+c.presupuesto,0)+calc.cuotasTotal,m=gm>0?calc.saldoAhorroActual/gm:0,ms=m.toFixed(1);
+    if(m<1)return{emoji:'🆘',title:'Sin fondo de emergencia',status:'danger',desc:`Cubre ${ms} meses. Mínimo: 3.`,accion:`Acumula ${cop(gm*3-calc.saldoAhorroActual)} en CDT líquido.`,cuts:[]};
+    if(m<3)return{emoji:'🟠',title:'Fondo insuficiente',status:'warn',desc:`${ms} meses. Meta: 3–6.`,accion:'Aumenta cuota de ahorro.',cuts:[]};
+    return{emoji:'🛡️',title:'Fondo sólido',status:'ok',desc:`${ms} meses de cobertura.`,accion:'Canaliza excedentes a inversiones.',cuts:[]};
+  }},
+  {id:'portafolio',evaluate(calc,data){
+    if(calc.totalPortafolio===0)return{emoji:'📈',title:'Sin inversiones',status:'warn',desc:`Inflación del ${pct(data.params.inflacion)} erosiona el efectivo.`,accion:'Inicia con un CDT al 12–14% EA.',cuts:[]};
+    return{emoji:'💰',title:'Portafolio activo',status:'ok',desc:`Portafolio de ${cop(calc.totalPortafolio)}.`,accion:'Verifica vencimientos y rebalancea.',cuts:[]};
+  }},
+];
+
+// ── Styles ─────────────────────────────────────────────────────────────────
+const cCard={background:'var(--bg)',border:'.5px solid var(--brd)',borderRadius:'var(--r-lg)',padding:'1rem 1.25rem',boxShadow:'var(--shadow)'};
+const cMC={background:'var(--bg2)',borderRadius:'var(--r-md)',padding:'.9rem 1rem'};
+const cBtnS={padding:'6px 14px',borderRadius:'var(--r-md)',fontSize:13,border:'.5px solid var(--brd2)',background:'transparent',color:'var(--txt)'};
+const cBtnD={padding:'6px 14px',borderRadius:'var(--r-md)',fontSize:13,border:'.5px solid #e0b4b4',background:'transparent',color:'var(--danger)'};
+const cBtnP={padding:'8px 20px',borderRadius:'var(--r-md)',fontSize:14,border:'none',background:'var(--teal)',color:'#fff',fontWeight:600,cursor:'pointer'};
+const cG2={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(145px,1fr))',gap:10};
+const cG3={display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(175px,1fr))',gap:12};
+const cLbl={fontSize:12,color:'var(--txt2)',display:'block',marginBottom:3};
+const cTh={textAlign:'left',padding:'6px 8px',fontSize:11,color:'var(--txt2)',fontWeight:500};
+const cTd={padding:'8px'};
+const tabSt=a=>({padding:'6px 14px',borderRadius:'var(--r-md)',fontSize:13,fontWeight:a?500:400,background:a?'var(--bg)':'transparent',border:a?'.5px solid var(--brd)':'none',cursor:'pointer',color:a?'var(--txt)':'var(--txt2)',boxShadow:a?'var(--shadow)':'none'});
+const bdg=s=>({fontSize:11,padding:'2px 8px',borderRadius:'var(--r-md)',display:'inline-block',background:s==='ok'?'var(--ok-bg)':s==='warn'?'var(--warn-bg)':s==='info'?'var(--info-bg)':'var(--danger-bg)',color:s==='ok'?'var(--ok-txt)':s==='warn'?'var(--warn-txt)':s==='info'?'var(--info-txt)':'var(--danger-txt)'});
+
+function MedioBadge({medio}){
+  if(!medio)return null;
+  const cfg=medio==='Tarjeta Crédito'?{bg:'var(--danger-bg)',cl:'var(--danger-txt)',ic:'💳'}:medio==='Tarjeta Débito'?{bg:'var(--debit-bg)',cl:'var(--debit-txt)',ic:'🏦'}:medio==='PSE'?{bg:'var(--pse-bg)',cl:'var(--pse-txt)',ic:'🌐'}:medio==='Ingreso Cuenta Bancaria'?{bg:'var(--ok-bg)',cl:'var(--ok-txt)',ic:'🏛️'}:medio==='Transferencia'?{bg:'var(--info-bg)',cl:'var(--info-txt)',ic:'↔️'}:{bg:'var(--cash-bg)',cl:'var(--cash-txt)',ic:'💵'};
+  return SPAN({style:{fontSize:11,padding:'2px 7px',borderRadius:'var(--r-md)',display:'inline-block',background:cfg.bg,color:cfg.cl}},`${cfg.ic} ${medio}`);
+}
+function TipoBadge({tipo}){
+  if(!tipo)return null;
+  const t=getTC(tipo);
+  const bgM={danger:'var(--danger-bg)',info:'var(--info-bg)',ok:'var(--ok-bg)',warn:'var(--warn-bg)'};
+  const clM={danger:'var(--danger-txt)',info:'var(--info-txt)',ok:'var(--ok-txt)',warn:'var(--warn-txt)'};
+  return SPAN({style:{fontSize:11,padding:'2px 7px',borderRadius:'var(--r-md)',display:'inline-flex',alignItems:'center',gap:3,background:bgM[t.colorS]||'var(--info-bg)',color:clM[t.colorS]||'var(--info-txt)',whiteSpace:'nowrap'}},t.icon,' ',t.id);
+}
+
+const anosUnicos=movs=>{const y={};movs.forEach(m=>{y[m.fecha.substring(0,4)]=1;});return Object.keys(y).sort().reverse();};
+const filtrarMovs=(movs,anio,mes,tipo,cat,medio)=>movs.filter(m=>(anio==='todos'||m.fecha.startsWith(anio))&&(mes==='todos'||m.fecha.substring(5,7)===mes)&&(tipo==='todos'||m.tipo===tipo)&&(cat==='todas'||m.categoria===cat)&&(medio==='todos'||(m.medioPago||'Efectivo')===medio));
+
+function MCard({label,value,color,sub}){return DIV({style:cMC},P({style:{fontSize:12,color:'var(--txt2)',margin:'0 0 4px'}},label),P({style:{fontSize:20,fontWeight:500,margin:'0 0 2px',color:color||'var(--txt)'}},value),sub&&(typeof sub==='string'?DIV({style:{fontSize:11,color:'var(--txt3)'}},sub):sub));}
+function SecTitle({title,sub}){return DIV({style:{marginBottom:'1rem'}},h('h3',{style:{fontSize:15,fontWeight:500,margin:'0 0 2px'}},title),sub&&P({style:{fontSize:12,color:'var(--txt2)',margin:0}},sub));}
+function BarProg({val,max,color}){const p=max>0?Math.min(1,val/max):0;return DIV({style:{height:6,background:'var(--brd)',borderRadius:3}},DIV({style:{height:6,width:pct(p),background:color||'var(--teal)',borderRadius:3,transition:'width .3s'}}));}
+function FiltroFecha({anos,anio,mes,setAnio,setMes}){
+  const label=anio==='todos'&&mes==='todos'?'Todo el período':anio!=='todos'&&mes!=='todos'?`${MON_FULL[parseInt(mes)-1]} ${anio}`:anio!=='todos'?`Año ${anio}`:MON_FULL[parseInt(mes)-1];
+  return DIV({style:{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}},
+    DIV({style:{display:'flex',gap:5,alignItems:'center'}},SPAN({style:{fontSize:12,color:'var(--txt3)'}},'Año:'),SEL({style:{width:'auto',minWidth:76,fontSize:12,padding:'4px 6px'},value:anio,onChange:e=>setAnio(e.target.value)},OPT({value:'todos'},'Todos'),...anos.map(y=>OPT({key:y,value:y},y)))),
+    DIV({style:{display:'flex',gap:5,alignItems:'center'}},SPAN({style:{fontSize:12,color:'var(--txt3)'}},'Mes:'),SEL({style:{width:'auto',minWidth:108,fontSize:12,padding:'4px 6px'},value:mes,onChange:e=>setMes(e.target.value)},OPT({value:'todos'},'Todos'),...MON_FULL.map((m,i)=>{const v=String(i+1).padStart(2,'0');return OPT({key:v,value:v},m);}))),
+    (anio!=='todos'||mes!=='todos')&&BTN({style:{...cBtnS,fontSize:11,padding:'3px 8px',color:'var(--txt3)'},onClick:()=>{setAnio('todos');setMes('todos');}},'✕'),
+    SPAN({style:{fontSize:11,padding:'3px 8px',borderRadius:'var(--r-md)',background:'var(--info-bg)',color:'var(--info-txt)'}},label)
+  );
+}
+function ResumenConsolidado({movs,label}){
+  const totI=movs.filter(m=>m.tipo==='Ingreso').reduce((s,m)=>s+m.monto,0),totG=movs.filter(m=>m.tipo==='Gasto').reduce((s,m)=>s+m.monto,0),totA=movs.filter(m=>m.tipo==='Ahorro').reduce((s,m)=>s+m.monto,0),neto=totI-totG-totA;
+  const c=(bg,cl,lb,v)=>DIV({style:{textAlign:'center',padding:'8px 4px',background:bg,borderRadius:'var(--r-md)'}},P({style:{fontSize:10,color:cl,margin:'0 0 3px',fontWeight:500}},lb),P({style:{fontSize:15,fontWeight:600,color:cl,margin:0}},cop(v)));
+  return DIV({style:{background:'var(--bg2)',borderRadius:'var(--r-lg)',padding:'1rem 1.25rem',border:'.5px solid var(--brd2)'}},
+    P({style:{fontSize:12,fontWeight:500,color:'var(--txt2)',margin:'0 0 10px',textTransform:'uppercase',letterSpacing:.4}},label||'Consolidado'),
+    DIV({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(100px,1fr))',gap:8}},
+      c('var(--ok-bg)','var(--ok-txt)','INGRESOS',totI),c('var(--danger-bg)','var(--danger-txt)','GASTOS',totG),totA>0&&c('var(--info-bg)','var(--info-txt)','AHORRO',totA),
+      c(neto>=0?'var(--ok-bg)':'var(--danger-bg)',neto>=0?'var(--ok-txt)':'var(--danger-txt)','NETO',neto),
+      DIV({style:{textAlign:'center',padding:'8px 4px',background:'var(--bg)',border:'.5px solid var(--brd2)',borderRadius:'var(--r-md)'}},P({style:{fontSize:10,color:'var(--txt2)',margin:'0 0 3px',fontWeight:500}},'MOVIMIENTOS'),P({style:{fontSize:15,fontWeight:600,margin:0}},movs.length))
+    )
+  );
+}
+
+function BarChart({labels,datasets,height=220}){const ref=useRef(),ch=useRef();useEffect(()=>{if(ch.current)ch.current.destroy();ch.current=new Chart(ref.current,{type:'bar',data:{labels,datasets:datasets.map(d=>({...d,borderRadius:4,borderSkipped:false}))},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:11},color:'#6b6b5e'}},tooltip:{callbacks:{label:c=>cop(c.raw)}}},scales:{x:{ticks:{font:{size:9},color:'#6b6b5e',maxRotation:40},grid:{color:'#e5e5df'}},y:{ticks:{font:{size:9},color:'#6b6b5e',callback:v=>'$'+(v/1000)+'k'},grid:{color:'#e5e5df'}}}}});return()=>{if(ch.current)ch.current.destroy();};},[JSON.stringify({labels,datasets})]);return DIV({style:{height}},CNV({ref}));}
+function LineChart({labels,datasets,height=180}){const ref=useRef(),ch=useRef();useEffect(()=>{if(ch.current)ch.current.destroy();ch.current=new Chart(ref.current,{type:'line',data:{labels,datasets:datasets.map(d=>({tension:.4,pointRadius:3,...d}))},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{font:{size:11},color:'#6b6b5e'}},tooltip:{callbacks:{label:c=>cop(c.raw)}}},scales:{x:{ticks:{font:{size:10},color:'#6b6b5e'},grid:{color:'#e5e5df'}},y:{ticks:{font:{size:10},color:'#6b6b5e',callback:v=>'$'+(v/1e6).toFixed(1)+'M'},grid:{color:'#e5e5df'}}}}});return()=>{if(ch.current)ch.current.destroy();};},[JSON.stringify({labels,datasets})]);return DIV({style:{height}},CNV({ref}));}
+function DonutChart({labels,data,height=160}){const ref=useRef(),ch=useRef();useEffect(()=>{if(ch.current)ch.current.destroy();ch.current=new Chart(ref.current,{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:PAL,borderWidth:2,borderColor:'#fff'}]},options:{responsive:true,maintainAspectRatio:false,cutout:'55%',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const t=c.dataset.data.reduce((a,b)=>a+b,0);return`${c.label}: ${cop(c.raw)} · ${t>0?((c.raw/t)*100).toFixed(1):0}%`;}}}}}});return()=>{if(ch.current)ch.current.destroy();};},[JSON.stringify({labels,data})]);
+  const total=data.reduce((a,b)=>a+b,0);
+  return DIV(null,DIV({style:{height}},CNV({ref})),DIV({style:{marginTop:8,display:'flex',flexDirection:'column',gap:3}},
+    ...labels.map((l,i)=>{const p=total>0?((data[i]/total)*100).toFixed(1):0;return DIV({key:l,style:{display:'flex',justifyContent:'space-between',alignItems:'center',fontSize:12,padding:'3px 0',borderBottom:'.5px solid var(--brd)'}},
+      DIV({style:{display:'flex',alignItems:'center',gap:6}},SPAN({style:{width:10,height:10,background:PAL[i],borderRadius:2,display:'inline-block',flexShrink:0}}),SPAN({style:{color:'var(--txt2)'}},l)),
+      DIV({style:{display:'flex',gap:8}},SPAN({style:{fontWeight:600}},cop(data[i])),SPAN({style:{...bdg('info'),fontSize:10}},`${p}%`))
+    );})
+  ));
+}
+
+function AlertBanner({onGoToMotor}){
+  const{data,calc}=useApp();const[dismissed,setDismissed]=useState([]);
+  const alerts=useMemo(()=>RULES.map(r=>({...r.evaluate(calc,data),id:r.id})).filter(r=>r.status==='danger'&&!dismissed.includes(r.id)),[calc,data,dismissed]);
+  if(!alerts.length)return null;
+  return DIV({style:{display:'flex',flexDirection:'column',gap:6,marginBottom:14}},
+    ...alerts.map(a=>DIV({key:a.id,style:{background:'var(--danger-bg)',border:'.5px solid #e0a0a0',borderRadius:'var(--r-md)',padding:'10px 14px',display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:10}},
+      DIV({style:{display:'flex',gap:10,flex:1}},SPAN({style:{fontSize:20,lineHeight:1,flexShrink:0}},a.emoji),DIV({style:{flex:1}},P({style:{fontWeight:600,fontSize:13,color:'var(--danger-txt)',margin:'0 0 2px'}},a.title),P({style:{fontSize:12,color:'var(--danger-txt)',margin:0,opacity:.85}},a.desc))),
+      DIV({style:{display:'flex',gap:6,flexShrink:0}},BTN({style:{...cBtnD,fontSize:11,padding:'3px 10px',minHeight:'unset'},onClick:onGoToMotor},'Ver Motor'),BTN({style:{...cBtnD,fontSize:11,padding:'3px 8px',minHeight:'unset'},onClick:()=>setDismissed(d=>[...d,a.id])},'✕'))
+    ))
+  );
+}
+
+// ── Onboarding (5 steps: Welcome·Income·Budget·TarjetasCredito·Done) ───────
+function Onboarding({onComplete}){
+  const{data,dispatch}=useApp();
+  const[step,setStep]=useState(0);
+  const[sal,setSal]=useState(data.params.salarioBase);
+  const[ss,setSS]=useState(data.params.pctSS);
+  const[extra,setExtra]=useState(data.params.ingAdicional);
+  const[cats,setCats]=useState(data.categorias.map(c=>({...c})));
+  const[numTC,setNumTC]=useState(0);
+  const[tcForms,setTcForms]=useState([]);
+  const neto=sal-sal*ss+extra,totCats=cats.reduce((s,c)=>s+c.presupuesto,0),libre=neto-totCats;
+  const updCat=(nombre,v)=>setCats(cs=>cs.map(c=>c.nombre===nombre?{...c,presupuesto:v}:c));
+  const EMPTY_TC={nombreMarca:'',entidad:'',saldo:'',tasaEA:'28.5',cupoTotal:'',cuotasTotales:'0'};
+  function setNumTCForms(n){
+    setNumTC(n);
+    setTcForms(arr=>{const b=[...arr];while(b.length<n)b.push({...EMPTY_TC});return b.slice(0,n);});
+  }
+  function updTC(i,key,val){setTcForms(arr=>arr.map((f,j)=>j===i?{...f,[key]:val}:f));}
+  function finish(){
+    dispatch({type:'UPD_PARAM',key:'salarioBase',val:sal});
+    dispatch({type:'UPD_PARAM',key:'pctSS',val:ss});
+    dispatch({type:'UPD_PARAM',key:'ingAdicional',val:extra});
+    cats.forEach(c=>dispatch({type:'UPD_CAT',nombre:c.nombre,val:c.presupuesto}));
+    tcForms.filter(f=>f.saldo).forEach(f=>dispatch({type:'ADD_CRED',cred:{tipoProducto:'Tarjeta de Crédito',nombre:f.nombreMarca||'Tarjeta de Crédito',nombreMarca:f.nombreMarca,entidad:f.entidad,saldo:+f.saldo,tasaEA:+f.tasaEA/100||.285,cuotasTotales:+f.cuotasTotales||0,cuotasPagadas:0,abono:0,abonoTipo:'mensual',cupoTotal:+f.cupoTotal||0}}));
+    markOnboarded();onComplete();
+  }
+  const prog=['Inicio','Ingreso','Presupuesto','Tarjetas','¡Listo!'];
+  const steps=[
+    // 0 — Welcome
+    ()=>DIV({style:{textAlign:'center',padding:'1rem 0'}},P({style:{fontSize:60,margin:'0 0 16px'}},'💰'),h('h2',{style:{fontSize:22,fontWeight:600,margin:'0 0 10px'}},'Bienvenido a tu Sistema Financiero'),P({style:{fontSize:14,color:'var(--txt2)',lineHeight:1.7,margin:'0 0 28px'}},'Controla ingresos, deudas, ahorros e inversiones en un solo lugar, adaptado a Colombia.'),
+      DIV({style:{display:'flex',flexDirection:'column',gap:10,textAlign:'left',background:'var(--bg2)',borderRadius:'var(--r-lg)',padding:'1rem',marginBottom:28}},
+        ...[['📊','Dashboard en tiempo real'],['⚡','Motor inteligente proactivo'],['💳','Control de créditos con amortización automática'],['📈','Inversiones: CDTs, dólares, acciones y crypto']].map(([ic,tx])=>DIV({style:{display:'flex',gap:10,alignItems:'center'}},SPAN({style:{fontSize:20}},ic),P({style:{fontSize:13,color:'var(--txt2)',margin:0}},tx)))
+      ),BTN({style:{...cBtnP,width:'100%',fontSize:15,padding:'12px'},onClick:()=>setStep(1)},'Comenzar →')),
+    // 1 — Income
+    ()=>DIV(null,h('h2',{style:{fontSize:18,fontWeight:600,margin:'0 0 6px'}},'💼 ¿Cuál es tu ingreso mensual?'),DIV({style:cG3},
+      DIV(null,LBL({style:cLbl},'Salario base ($)'),INP({type:'number',value:sal,onChange:e=>setSal(+e.target.value||0)})),
+      DIV(null,LBL({style:cLbl},'Seguridad social (ej: 0.12)'),INP({type:'number',step:'.01',value:ss,onChange:e=>setSS(+e.target.value||0)})),
+      DIV(null,LBL({style:cLbl},'Ingresos adicionales ($)'),INP({type:'number',value:extra,onChange:e=>setExtra(+e.target.value||0)}))
+    ),DIV({style:{...cCard,margin:'20px 0',textAlign:'center'}},P({style:{fontSize:13,color:'var(--txt2)',margin:'0 0 4px'}},'Ingreso neto estimado'),P({style:{fontSize:26,fontWeight:700,color:'var(--teal)',margin:0}},cop(neto))),
+    DIV({style:{display:'flex',gap:10,marginTop:8}},BTN({style:{...cBtnS,flex:1},onClick:()=>setStep(0)},'← Atrás'),BTN({style:{...cBtnP,flex:2},onClick:()=>setStep(2)},'Continuar →'))),
+    // 2 — Budget
+    ()=>DIV(null,h('h2',{style:{fontSize:18,fontWeight:600,margin:'0 0 12px'}},'📋 Ajusta tu presupuesto mensual'),
+      DIV({style:{background:libre>=0?'var(--ok-bg)':'var(--danger-bg)',borderRadius:'var(--r-md)',padding:'10px 14px',marginBottom:14,display:'flex',justifyContent:'space-between',flexWrap:'wrap',gap:8}},
+        DIV(null,P({style:{fontSize:12,fontWeight:500,color:libre>=0?'var(--ok-txt)':'var(--danger-txt)',margin:'0 0 2px'}},'Total vs ingreso'),P({style:{fontSize:11,margin:0,color:libre>=0?'var(--ok-txt)':'var(--danger-txt)'}},`${cop(totCats)} de ${cop(neto)}`)),
+        P({style:{fontSize:18,fontWeight:700,color:libre>=0?'var(--teal)':'var(--danger)',margin:0}},(libre>=0?'+':'')+cop(libre))
+      ),h(BarProg,{val:totCats,max:neto,color:libre<0?'var(--danger)':'var(--teal)'}),
+      DIV({style:{maxHeight:280,overflowY:'auto',marginTop:14,display:'flex',flexDirection:'column',gap:8}},...cats.map(c=>DIV({key:c.nombre,style:{display:'flex',alignItems:'center',gap:10}},DIV({style:{flex:'0 0 140px',fontSize:13}},[c.nombre]),INP({type:'number',style:{flex:1},value:c.presupuesto,onChange:e=>updCat(c.nombre,+e.target.value||0)})))),
+      DIV({style:{display:'flex',gap:10,marginTop:16}},BTN({style:{...cBtnS,flex:1},onClick:()=>setStep(1)},'← Atrás'),BTN({style:{...cBtnP,flex:2},onClick:()=>setStep(3)},'Continuar →'))),
+    // 3 — Credit Cards
+    ()=>DIV(null,
+      h('h2',{style:{fontSize:18,fontWeight:600,margin:'0 0 6px'}},'💳 ¿Cuántas tarjetas de crédito tienes?'),
+      P({style:{fontSize:13,color:'var(--txt2)',margin:'0 0 16px'}},'Configúralas ahora para que el portafolio quede listo desde el inicio. El saldo se actualizará automáticamente con tus compras.'),
+      DIV({style:{display:'flex',gap:8,marginBottom:20,flexWrap:'wrap'}},
+        ...[0,1,2,3,4,5].map(n=>BTN({key:n,style:{...cBtnS,minWidth:48,background:numTC===n?'var(--teal)':'transparent',color:numTC===n?'#fff':'var(--txt)',border:numTC===n?'none':'.5px solid var(--brd2)',fontWeight:numTC===n?600:400},onClick:()=>setNumTCForms(n)},String(n)))
+      ),
+      numTC===0&&P({style:{fontSize:13,color:'var(--txt3)',textAlign:'center',padding:'1rem 0'}},'Sin tarjetas de crédito. Puedes agregarlas después desde "Créditos".'),
+      numTC>0&&DIV({style:{display:'flex',flexDirection:'column',gap:14}},
+        ...tcForms.map((f,i)=>DIV({key:i,style:{...cCard,borderLeft:'3px solid var(--danger)'}},
+          P({style:{fontSize:13,fontWeight:600,color:'var(--danger-txt)',margin:'0 0 12px'}},`💳 Tarjeta ${i+1}`),
+          DIV({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:10}},
+            DIV(null,LBL({style:cLbl},'Franquicia / marca'),SEL({value:f.nombreMarca,onChange:e=>updTC(i,'nombreMarca',e.target.value)},OPT({value:''},'— Selecciona —'),...MARCAS_TC.map(m=>OPT({key:m,value:m},m)))),
+            DIV(null,LBL({style:cLbl},'Entidad bancaria'),SEL({value:f.entidad,onChange:e=>updTC(i,'entidad',e.target.value)},OPT({value:''},'— Selecciona banco —'),...BANCOS_CO.map(b=>OPT({key:b,value:b},b)))),
+            DIV(null,LBL({style:cLbl},'Saldo actual ($)'),INP({type:'number',value:f.saldo,onChange:e=>updTC(i,'saldo',e.target.value),placeholder:'1500000'})),
+            DIV(null,LBL({style:cLbl},'Cupo total ($)'),INP({type:'number',value:f.cupoTotal,onChange:e=>updTC(i,'cupoTotal',e.target.value),placeholder:'3000000'})),
+            DIV(null,LBL({style:cLbl},'Tasa EA (%)'),INP({type:'number',step:'.1',value:f.tasaEA,onChange:e=>updTC(i,'tasaEA',e.target.value),placeholder:'28.5'})),
+            DIV(null,LBL({style:cLbl},'Cuotas diferidas del saldo (0=pago mínimo)'),INP({type:'number',value:f.cuotasTotales,onChange:e=>updTC(i,'cuotasTotales',e.target.value),placeholder:'0'}))
+          )
+        ))
+      ),
+      DIV({style:{display:'flex',gap:10,marginTop:16}},BTN({style:{...cBtnS,flex:1},onClick:()=>setStep(2)},'← Atrás'),BTN({style:{...cBtnP,flex:2},onClick:()=>setStep(4)},'Continuar →'))
+    ),
+    // 4 — Done
+    ()=>DIV({style:{textAlign:'center',padding:'1rem 0'}},P({style:{fontSize:60,margin:'0 0 16px'}},'🎉'),h('h2',{style:{fontSize:22,fontWeight:600,margin:'0 0 10px'}},'¡Todo listo!'),
+      DIV({style:{...cCard,margin:'0 0 24px'}},DIV({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}},
+        DIV({style:{...cMC,textAlign:'center'}},P({style:{fontSize:11,color:'var(--txt2)',fontWeight:500,margin:'0 0 4px'}},'INGRESO NETO'),P({style:{fontSize:18,fontWeight:700,color:'var(--teal)',margin:0}},cop(neto))),
+        DIV({style:{...cMC,textAlign:'center'}},P({style:{fontSize:11,color:'var(--txt2)',fontWeight:500,margin:'0 0 4px'}},'PRESUPUESTO'),P({style:{fontSize:18,fontWeight:700,color:'var(--blue)',margin:0}},cop(totCats))),
+        numTC>0&&DIV({style:{...cMC,textAlign:'center'}},(P({style:{fontSize:11,color:'var(--txt2)',fontWeight:500,margin:'0 0 4px'}},`TARJETAS DE CRÉDITO`),P({style:{fontSize:18,fontWeight:700,color:'var(--danger)',margin:0}},`${tcForms.filter(f=>f.saldo).length} configurada${tcForms.filter(f=>f.saldo).length!==1?'s':''}`)))
+      )),
+      BTN({style:{...cBtnP,width:'100%',fontSize:15,padding:'12px'},onClick:finish},'Empezar a usar la app →'))
+  ];
+  return DIV({style:{position:'fixed',inset:0,background:'rgba(0,0,0,.5)',zIndex:500,display:'flex',alignItems:'center',justifyContent:'center',padding:'1rem'}},
+    DIV({style:{background:'var(--bg)',borderRadius:'var(--r-lg)',padding:'1.5rem',width:'100%',maxWidth:540,maxHeight:'92vh',overflowY:'auto',animation:'fadeIn .25s ease',boxShadow:'0 20px 60px rgba(0,0,0,.25)'}},
+      DIV({style:{display:'flex',gap:4,marginBottom:16}},...prog.map((l,i)=>DIV({key:l,style:{flex:1,height:4,borderRadius:2,background:i<=step?'var(--teal)':'var(--brd)',transition:'background .3s'}}))),
+      DIV({style:{marginBottom:8,fontSize:12,color:'var(--txt3)',textAlign:'right'}},[`Paso ${step+1} de ${prog.length}: `,SPAN({style:{fontWeight:500,color:'var(--txt)'}},prog[step])]),
+      steps[step]()
+    )
+  );
+}
+
+// ── Dashboard ──────────────────────────────────────────────────────────────
+function Dashboard({onGoToMotor}){
+  const{data,calc}=useApp();
+  const hist=useMemo(()=>computeHistorical(data.movimientos),[data.movimientos]);
+  const dtiS=calc.dti<.3?'ok':calc.dti<.45?'warn':'danger';
+  const flujoS=calc.flujoCaja>0?'ok':calc.flujoCaja>-500000?'warn':'danger';
+  const cats=data.categorias.map(c=>({n:c.nombre,p:c.presupuesto,r:data.movimientos.filter(m=>m.tipo==='Gasto'&&m.categoria===c.nombre).reduce((s,m)=>s+m.monto,0)}));
+  const aLabels=calc.ahorroProj.slice(0,13).map((_,i)=>i===0?'Hoy':MON[i-1]);
+  const pieDeuda=calc.creditosCalc.map(c=>Math.round(c.saldo));
+  const piePort=[calc.totalCDT,calc.totalDolares,calc.totalAcciones,calc.totalCrypto].filter(v=>v>0).map(v=>Math.round(v));
+  const piePortL=['CDTs','Dólares','Acciones','Crypto'].filter((_,i)=>[calc.totalCDT,calc.totalDolares,calc.totalAcciones,calc.totalCrypto][i]>0);
+  return DIV({style:{display:'flex',flexDirection:'column',gap:'1.5rem'}},
+    h(AlertBanner,{onGoToMotor}),
+    DIV({style:cG2},
+      h(MCard,{label:'Ingreso neto',   value:cop(calc.ingresoNeto),       sub:`Base: ${cop(data.params.salarioBase)}`}),
+      h(MCard,{label:'Deuda total',    value:cop(calc.deudaTotal),        color:'var(--danger)',sub:`${data.creditos.filter(c=>c.saldo>0).length} productos`}),
+      h(MCard,{label:'Cuotas/mes',     value:cop(calc.cuotasTotal),       sub:SPAN({style:bdg(dtiS)},`DTI ${pct(calc.dti)}`)}),
+      h(MCard,{label:'Flujo de caja',  value:cop(calc.flujoCaja),         color:calc.flujoCaja>=0?'var(--success)':'var(--danger)',sub:SPAN({style:bdg(flujoS)},calc.flujoCaja>=0?'Positivo':'Déficit')}),
+      h(MCard,{label:'Ahorro',         value:cop(calc.saldoAhorroActual), sub:`${pct(calc.saldoAhorroActual/data.ahorro.meta)} de meta`}),
+      h(MCard,{label:'Portafolio',     value:cop(calc.totalPortafolio),   color:'var(--success)',sub:'CDTs+USD+Acc+Crypto'}),
+      h(MCard,{label:'Patrimonio neto',value:cop(calc.patrimonioNeto),    color:calc.patrimonioNeto>=0?'var(--success)':'var(--danger)',sub:'Activos − Pasivos'})
+    ),
+    hist.length>1&&DIV({style:cCard},
+      h(SecTitle,{title:'📅 Tendencia histórica',sub:`Últimos ${hist.length} meses`}),
+      h(BarChart,{height:200,labels:hist.map(m=>m.label),datasets:[{label:'Ingresos',data:hist.map(m=>m.ingreso),backgroundColor:'#1D9E75'},{label:'Gastos',data:hist.map(m=>m.gasto),backgroundColor:'#D85A30'}]}),
+      DIV({style:{marginTop:14}},h(LineChart,{height:130,labels:hist.map(m=>m.label),datasets:[{label:'Neto',data:hist.map(m=>m.neto),borderColor:hist[hist.length-1]?.neto>=0?'#1D9E75':'#c0392b',backgroundColor:'rgba(29,158,117,.07)',fill:true}]})),
+      DIV({style:{overflowX:'auto',marginTop:10}},TABLE({style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
+        THEAD(null,TR({style:{borderBottom:'.5px solid var(--brd)',background:'var(--bg2)'}},...['Mes','Ingresos','Gastos','Neto'].map(h2=>TH({key:h2,style:cTh},h2)))),
+        TBODY(null,...hist.map(m=>TR({key:m.key,style:{borderBottom:'.5px solid var(--brd)'}},TD({style:{...cTd,fontWeight:500}},[m.label]),TD({style:{...cTd,color:'var(--success)'}},cop(m.ingreso)),TD({style:{...cTd,color:'var(--danger)'}},cop(m.gasto)),TD({style:{...cTd,fontWeight:600,color:m.neto>=0?'var(--success)':'var(--danger)'}},`${m.neto>=0?'+':''}${cop(m.neto)}`))))
+      ))
+    ),
+    DIV({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}},
+      DIV({style:cCard},h(SecTitle,{title:'Presupuesto vs Real'}),h(BarChart,{height:200,labels:cats.map(c=>c.n),datasets:[{label:'Presupuesto',data:cats.map(c=>c.p),backgroundColor:'#378ADD'},{label:'Real',data:cats.map(c=>c.r),backgroundColor:'#1D9E75'}]})),
+      DIV({style:cCard},h(SecTitle,{title:'Deuda por producto'}),pieDeuda.length>0?h(DonutChart,{labels:calc.creditosCalc.map(c=>c.nombre.split(' ').slice(0,2).join(' ')),data:pieDeuda}):P({style:{fontSize:13,color:'var(--txt3)'}},'Sin deudas'))
+    ),
+    DIV({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}},
+      DIV({style:cCard},h(SecTitle,{title:'Distribución portafolio'}),piePort.length>0?h(DonutChart,{labels:piePortL,data:piePort}):P({style:{fontSize:13,color:'var(--txt3)'}},'Sin inversiones')),
+      DIV({style:cCard},h(SecTitle,{title:'Proyección ahorro',sub:`Meta: ${cop(data.ahorro.meta)}`}),
+        h(LineChart,{labels:aLabels,datasets:[{label:'Saldo',data:calc.ahorroProj.slice(0,13).map(a=>a.saldo),borderColor:'#1D9E75',backgroundColor:'rgba(29,158,117,.08)'},{label:'Meta',data:Array(13).fill(data.ahorro.meta),borderColor:'#BA7517',backgroundColor:'transparent',borderDash:[6,4],pointRadius:0}]})
+      )
+    )
+  );
+}
+
+// ── Creditos ───────────────────────────────────────────────────────────────
+function Creditos(){
+  const{data,calc,dispatch}=useApp();
+  const FORM0={tipoProducto:'Libre Inversión',nombre:'',nombreMarca:'',entidad:'',saldo:'',tasaEA:'',cuotasTotales:'',cuotasPagadas:'0',cupoTotal:'',cuotaFija:''};
+  const[form,setForm]=useState(FORM0);
+  const[show,setShow]=useState(false);
+  const fv=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
+  const isTC=form.tipoProducto==='Tarjeta de Crédito';
+  const isDP=form.tipoProducto==='Deuda Personal';
+  const tipoInfo=getTC(form.tipoProducto);
+  const tipoBorder={danger:'var(--danger)',ok:'var(--teal)',warn:'var(--warning)',info:'var(--blue)'}[tipoInfo.colorS]||'var(--blue)';
+
+  function doAdd(){
+    if(!form.saldo)return;
+    let cred;
+    if(isDP){
+      if(!form.nombre||!form.cuotaFija)return;
+      const cf=+form.cuotaFija||1,ct=Math.ceil(+form.saldo/cf);
+      cred={tipoProducto:form.tipoProducto,nombre:form.nombre,nombreMarca:'',entidad:'',saldo:+form.saldo,tasaEA:0,cuotasTotales:ct,cuotasPagadas:+form.cuotasPagadas||0,abono:0,abonoTipo:'mensual',cupoTotal:0};
+    } else if(isTC){
+      if(!form.tasaEA)return;
+      cred={tipoProducto:form.tipoProducto,nombre:form.nombreMarca||'Tarjeta de Crédito',nombreMarca:form.nombreMarca,entidad:form.entidad,saldo:+form.saldo,tasaEA:+form.tasaEA/100,cuotasTotales:+form.cuotasTotales||0,cuotasPagadas:0,abono:0,abonoTipo:'mensual',cupoTotal:+form.cupoTotal||0};
+    } else {
+      if(!form.nombre||!form.tasaEA||!form.cuotasTotales)return;
+      cred={tipoProducto:form.tipoProducto,nombre:form.nombre,nombreMarca:'',entidad:form.entidad,saldo:+form.saldo,tasaEA:+form.tasaEA/100,cuotasTotales:+form.cuotasTotales,cuotasPagadas:+form.cuotasPagadas||0,abono:0,abonoTipo:'mensual',cupoTotal:0};
+    }
+    dispatch({type:'ADD_CRED',cred});
+    setForm({...FORM0,tipoProducto:form.tipoProducto});setShow(false);
+  }
+
+  // Consumos TC (for history section)
+  const anos=useMemo(()=>anosUnicos(data.movimientos),[data.movimientos]);
+  const curY=String(new Date().getFullYear());
+  const[anio,setAnio]=useState(anos.includes(curY)?curY:(anos[0]||'todos'));
+  const[mes,setMes]=useState(String(new Date().getMonth()+1).padStart(2,'0'));
+  const[expTC,setExpTC]=useState(null);
+  const consumosPorTC=useMemo(()=>{
+    const mf=filtrarMovs(data.movimientos,anio,mes,'todos','todas','todos');
+    const by={};mf.filter(m=>m.medioPago==='Tarjeta Crédito'&&m.creditoId).forEach(m=>{if(!by[m.creditoId])by[m.creditoId]={total:0,items:[]};by[m.creditoId].total+=m.monto;by[m.creditoId].items.push(m);});
+    return by;
+  },[data.movimientos,anio,mes]);
+  const totTC=Object.values(consumosPorTC).reduce((s,v)=>s+v.total,0);
+
+  // Amortización
+  const[amId,setAmId]=useState(null);
+  const[amView,setAmView]=useState('original'); // 'original' | 'abono' | 'simulacion'
+  const[simCuotas,setSimCuotas]=useState('');
+  const amCred=useMemo(()=>calc.creditosCalc.find(x=>x.id===amId),[amId,calc.creditosCalc]);
+  const amRows = useMemo(() => { if (!amCred || amCred.cuotasRestantes <= 0) return []; const maxCuotas = amCred.tipoProducto === 'Hipotecario' ? 240 : 60; return computeSched(amCred.saldo, amCred.rate, amCred.cuotaBase, 0, Math.min(amCred.cuotasRestantes, maxCuotas)); }, [amCred]);
+  const amRowsAbono=useMemo(()=>{
+    if(!amCred||amCred.cuotasRestantes===0||!amCred.abono)return[];
+    const ocasional=(amCred.abonoTipo||'mensual')==='ocasional';
+    return computeSched(amCred.saldo,amCred.rate,amCred.cuotaBase,amCred.abono,Math.min(amCred.cuotasRestantes,60),ocasional);
+  },[amCred]);
+  const savings=useMemo(()=>{if(!amRows.length||!amRowsAbono.length)return null;return{mesesAhorrados:amRows.length-amRowsAbono.length,interesAhorrado:amRows.reduce((s,r)=>s+r.i,0)-amRowsAbono.reduce((s,r)=>s+r.i,0)};},[amRows,amRowsAbono]);
+  // Simulación por cambio de cuotas
+  const simN=parseInt(simCuotas)||0;
+  const simCuotaBase=useMemo(()=>amCred&&simN>0?pmt(amCred.rate,simN,amCred.saldo):0,[amCred,simN]);
+  const amRowsSim = useMemo(() => amCred && simN > 0 ? computeSched(amCred.saldo, amCred.rate, simCuotaBase, 0, Math.min(simN, 240)) : [], [amCred, simN, simCuotaBase]);
+  const simCompar=useMemo(()=>{
+    if(!amRows.length||!amRowsSim.length)return null;
+    const iO=amRows.reduce((s,r)=>s+r.i,0),iS=amRowsSim.reduce((s,r)=>s+r.i,0);
+    return{cuotasDiff:amRows.length-amRowsSim.length,interesDiff:iO-iS,cuotaBaseDiff:simCuotaBase-amCred.cuotaBase};
+  },[amRows,amRowsSim,simCuotaBase,amCred]);
+  const activeSched=amView==='abono'&&amRowsAbono.length>0?amRowsAbono:amView==='simulacion'&&amRowsSim.length>0?amRowsSim:amRows;
+
+  return DIV({style:{display:'flex',flexDirection:'column',gap:'1.5rem'}},
+    DIV({style:{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8}},
+      h(SecTitle,{title:'Portafolio de compromisos crediticios',sub:`${calc.creditosCalc.length} productos · DTI ${pct(calc.dti)}`}),
+      BTN({style:cBtnS,onClick:()=>setShow(!show)},show?'Cancelar':'+ Agregar producto')
+    ),
+
+    // ── Formulario ────────────────────────────────────────────────────────
+    show&&DIV({style:{...cCard,borderTop:`3px solid ${tipoBorder}`}},
+      h(SecTitle,{title:'Nuevo producto crediticio',sub:`${tipoInfo.icon} ${tipoInfo.desc}`}),
+      DIV({style:{marginBottom:14}},
+        LBL({style:{...cLbl,fontSize:13,fontWeight:500}},'Tipo de producto financiero'),
+        SEL({value:form.tipoProducto,style:{fontSize:14,fontWeight:500},onChange:e=>setForm({...FORM0,tipoProducto:e.target.value})},
+          ...TIPOS_CREDITO.map(t=>OPT({key:t.id,value:t.id},`${t.icon}  ${t.id} — ${t.desc}`))
+        )
+      ),
+      isDP
+        ?DIV({style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}},
+            DIV(null,LBL({style:cLbl},'Nombre del acreedor'),INP({value:form.nombre,onChange:fv('nombre'),placeholder:'Nombre del acreedor'})),
+            DIV(null,LBL({style:cLbl},'Saldo actual ($)'),INP({type:'number',value:form.saldo,onChange:fv('saldo'),placeholder:'1500000'})),
+            DIV(null,LBL({style:cLbl},'Cuota mensual acordada ($)'),INP({type:'number',value:form.cuotaFija,onChange:fv('cuotaFija'),placeholder:'200000'})),
+            DIV(null,LBL({style:cLbl},'Cuotas ya pagadas'),INP({type:'number',value:form.cuotasPagadas,onChange:fv('cuotasPagadas')}))
+          )
+        :isTC
+          ?DIV({style:cG3},
+              DIV(null,LBL({style:cLbl},'Franquicia / marca de la tarjeta'),SEL({value:form.nombreMarca,onChange:fv('nombreMarca')},OPT({value:''},'— Selecciona franquicia —'),...MARCAS_TC.map(m=>OPT({key:m,value:m},m)))),
+              DIV(null,LBL({style:cLbl},'Entidad bancaria'),SEL({value:form.entidad,onChange:fv('entidad')},OPT({value:''},'— Selecciona banco —'),...BANCOS_CO.map(b=>OPT({key:b,value:b},b)))),
+              DIV(null,LBL({style:cLbl},'Saldo actual ($)'),INP({type:'number',value:form.saldo,onChange:fv('saldo'),placeholder:'1500000'})),
+              DIV(null,LBL({style:cLbl},'Tasa EA (%)'),INP({type:'number',step:'.1',value:form.tasaEA,onChange:fv('tasaEA'),placeholder:'28.5'})),
+              DIV(null,LBL({style:cLbl},'Cupo total ($)'),INP({type:'number',value:form.cupoTotal,onChange:fv('cupoTotal'),placeholder:'3000000'})),
+              DIV(null,LBL({style:cLbl},'Cuotas diferidas (0 = pago mínimo)'),INP({type:'number',value:form.cuotasTotales,onChange:fv('cuotasTotales'),placeholder:'0'}))
+            )
+          :DIV({style:cG3},
+              DIV(null,LBL({style:cLbl},'Nombre del producto'),INP({value:form.nombre,onChange:fv('nombre'),placeholder:'Crédito libre inversión'})),
+              DIV(null,LBL({style:cLbl},'Entidad bancaria'),SEL({value:form.entidad,onChange:fv('entidad')},OPT({value:''},'— Selecciona banco —'),...BANCOS_CO.map(b=>OPT({key:b,value:b},b)))),
+              DIV(null,LBL({style:cLbl},'Saldo actual ($)'),INP({type:'number',value:form.saldo,onChange:fv('saldo'),placeholder:'1500000'})),
+              DIV(null,LBL({style:cLbl},'Tasa EA (%)'),INP({type:'number',step:'.1',value:form.tasaEA,onChange:fv('tasaEA'),placeholder:'28.5'})),
+              DIV(null,LBL({style:cLbl},'Cuotas pactadas'),INP({type:'number',value:form.cuotasTotales,onChange:fv('cuotasTotales'),placeholder:'36'})),
+              DIV(null,LBL({style:cLbl},'Cuotas ya pagadas'),INP({type:'number',value:form.cuotasPagadas,onChange:fv('cuotasPagadas')}))
+            ),
+      DIV({style:{background:'var(--info-bg)',borderRadius:'var(--r-md)',padding:'10px 14px',marginTop:12,marginBottom:12,fontSize:12,color:'var(--info-txt)',lineHeight:1.6}},
+        isDP?'👤 Deuda personal: sin banco ni tasa. Las cuotas restantes se calculan automáticamente con tasa 0%.'
+        :isTC?'💳 TC: cuotas=0 → pago mínimo (interés+1%). Las compras sumarán al saldo automáticamente.'
+        :'💰 Sistema francés (cuota constante, capital creciente, interés decreciente). Los pagos "Cuota crédito" reducirán el saldo automáticamente.'
+      ),
+      DIV({style:{display:'flex',gap:10}},BTN({style:{...cBtnS,flex:1},onClick:()=>setShow(false)},'Cancelar'),BTN({style:{...cBtnP,flex:2},onClick:doAdd},'Guardar producto'))
+    ),
+
+    // ── Tabla ────────────────────────────────────────────────────────────
+    DIV({style:cCard},DIV({style:{overflowX:'auto'}},
+      TABLE({style:{width:'100%',borderCollapse:'collapse',fontSize:13}},
+        THEAD(null,TR({style:{borderBottom:'.5px solid var(--brd)',background:'var(--bg2)'}},
+          ...['Tipo','Producto / Entidad','Saldo ($)','Tasa EA','Cuota base','Abono','Tipo abono','Total/mes','Info','Acción'].map(h2=>TH({key:h2,style:cTh},h2))
+        )),
+        TBODY(null,...calc.creditosCalc.map(c=>{
+          const cupoDisp=c.isTC&&c.cupoTotal>0?c.cupoTotal-c.saldo:0;
+          const pctCupo=c.isTC&&c.cupoTotal>0?c.saldo/c.cupoTotal:0;
+          return TR({key:c.id,style:{borderBottom:'.5px solid var(--brd)',background:amId===c.id?'#f0faf6':'transparent'}},
+            TD({style:{...cTd,minWidth:130}},h(TipoBadge,{tipo:c.tipoProducto||'Libre Inversión'})),
+            TD({style:cTd},
+              DIV({style:{fontWeight:500,fontSize:13}},[c.nombre,c.nombreMarca&&c.nombre!==c.nombreMarca&&SPAN({key:'m',style:{fontSize:10,color:'var(--txt3)',marginLeft:5}},`· ${c.nombreMarca}`)]),
+              P({style:{fontSize:11,color:'var(--txt3)',margin:'2px 0 0'}},[c.entidad||'(personal)'])
+            ),
+            TD({style:cTd},INP({type:'number',style:{width:115,color:'var(--danger)',fontWeight:500},value:c.saldo,onChange:e=>dispatch({type:'UPD_CRED',id:c.id,key:'saldo',val:e.target.value})})),
+            TD({style:cTd},c.isDP?SPAN({style:{fontSize:11,color:'var(--txt3)'}},'0%'):pct(c.tasaEA)),
+            TD({style:cTd},P({style:{margin:0}},cop(c.cuotaBase)),c.isTC&&(!c.cuotasTotales||c.cuotasTotales===0)&&P({style:{fontSize:10,color:'var(--danger-txt)',margin:'2px 0 0'}},'Pago mín.')),
+            // ── Abono amount ──
+            TD({style:cTd},INP({type:'number',style:{width:90},value:c.abono,onChange:e=>dispatch({type:'UPD_CRED',id:c.id,key:'abono',val:e.target.value}),placeholder:'0'})),
+            // ── Tipo abono (mensual/ocasional) ──
+            TD({style:cTd},c.abono>0
+              ?SEL({style:{fontSize:11,padding:'3px 6px',minHeight:'unset',width:98},value:c.abonoTipo||'mensual',onChange:e=>dispatch({type:'UPD_CRED',id:c.id,key:'abonoTipo',val:e.target.value,str:true})},
+                  OPT({value:'mensual'},'📅 Mensual'),OPT({value:'ocasional'},'💫 Único')
+                )
+              :SPAN({style:{fontSize:11,color:'var(--txt3)'}},'—')
+            ),
+            TD({style:{...cTd,fontWeight:500}},cop(c.cuotaTotal)),
+            TD({style:{...cTd,minWidth:120}},
+              c.isTC&&c.cupoTotal>0
+                ?DIV(null,h(BarProg,{val:c.saldo,max:c.cupoTotal,color:pctCupo>.8?'var(--danger)':pctCupo>.5?'var(--amber)':'var(--teal)'}),DIV({style:{display:'flex',justifyContent:'space-between',fontSize:10,color:'var(--txt3)',marginTop:2}},SPAN(null,`Usado: ${pct(pctCupo)}`),SPAN(null,`Disp: ${cop(cupoDisp)}`)))
+                :c.cuotasTotales>0
+                  ?DIV(null,h(BarProg,{val:c.cuotasPagadas,max:c.cuotasTotales}),SPAN({style:{fontSize:10,color:'var(--txt3)'}},`${c.cuotasRestantes} rest. (${pct(c.cuotasPagadas/c.cuotasTotales)})`))
+                  :SPAN({style:{...bdg('warn'),fontSize:10}},'Sin plazo fijo')
+            ),
+            TD({style:{...cTd,whiteSpace:'nowrap'}},
+              // ✅ "Cerrar" text instead of ✕
+              c.cuotasRestantes>0&&BTN({style:{...cBtnS,fontSize:11,padding:'3px 8px',marginRight:4,background:amId===c.id?'var(--teal)':'transparent',color:amId===c.id?'#fff':'var(--txt)'},
+                onClick:()=>{
+                  const opening=amId!==c.id;
+                  setAmId(opening?c.id:null);
+                  setAmView(opening&&c.abono>0?'abono':'original');
+                  setSimCuotas('');
+                }
+              },amId===c.id?'Cerrar':'📊 Tabla'),
+              BTN({style:{...cBtnD,fontSize:11,padding:'3px 8px'},onClick:()=>dispatch({type:'DEL_CRED',id:c.id})},'✕')
+            )
+          );
+        })),
+        TFOOT(null,TR({style:{borderTop:'.5px solid var(--brd2)',background:'var(--bg2)'}},
+          TD({colSpan:2,style:{padding:'8px',fontSize:12,color:'var(--txt2)',fontWeight:600}},'TOTAL'),
+          TD({style:{...cTd,fontWeight:600,color:'var(--danger)'}},cop(calc.deudaTotal)),
+          TD({colSpan:5}),TD({style:{...cTd,fontWeight:600}},cop(calc.cuotasTotal)),
+          TD({colSpan:2},SPAN({style:bdg(calc.dti<.3?'ok':calc.dti<.45?'warn':'danger')},`DTI ${pct(calc.dti)}`))
+        ))
+      )
+    )),
+
+    // ── Tabla de amortización ─────────────────────────────────────────────
+    amId&&amCred&&amRows.length>0&&DIV({style:{...cCard,borderTop:'2px solid var(--teal)'}},
+      DIV({style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',flexWrap:'wrap',gap:10,marginBottom:'1rem'}},
+        DIV(null,
+          h('h3',{style:{fontSize:15,fontWeight:500,margin:'0 0 4px'}},`📊 Amortización — ${amCred.nombre}`),
+          P({style:{fontSize:12,color:'var(--txt2)',margin:0}},`Sistema francés · Cuota base: ${cop(amCred.cuotaBase)}/mes · Tasa MV: ${pct(amCred.rate)}`)
+        ),
+        DIV({style:{display:'flex',gap:8,flexWrap:'wrap'}},
+          DIV({style:{...cMC,textAlign:'center',padding:'8px 14px'}},P({style:{fontSize:10,color:'var(--txt2)',margin:'0 0 2px'}},'CUOTAS REST.'),P({style:{fontSize:18,fontWeight:700,margin:0}},amRows.length)),
+          DIV({style:{...cMC,textAlign:'center',padding:'8px 14px'}},P({style:{fontSize:10,color:'var(--txt2)',margin:'0 0 2px'}},'INTERÉS TOTAL'),P({style:{fontSize:14,fontWeight:700,color:'var(--danger)',margin:0}},cop(amRows.reduce((s,r)=>s+r.i,0))))
+        )
+      ),
+      // ── Savings banner ────────────────────────────────────────────────
+      savings&&savings.mesesAhorrados>0&&DIV({style:{background:'var(--ok-bg)',borderRadius:'var(--r-md)',padding:'12px 16px',marginBottom:14,display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:12}},
+        DIV(null,
+          P({style:{fontSize:13,fontWeight:600,color:'var(--ok-txt)',margin:'0 0 4px'}},
+            (amCred.abonoTipo||'mensual')==='mensual'
+              ?`🎉 Con abono de ${cop(amCred.abono)}/mes:`
+              :`🎉 Con abono único de ${cop(amCred.abono)}:`
+          ),
+          P({style:{fontSize:12,color:'var(--ok-txt)',margin:0}},`Terminas ${savings.mesesAhorrados} meses antes y ahorras ${cop(savings.interesAhorrado)} en intereses`)
+        ),
+        DIV({style:{display:'flex',gap:8}},
+          DIV({style:{textAlign:'center',padding:'8px 14px',background:'var(--bg)',borderRadius:'var(--r-md)',boxShadow:'var(--shadow)'}},P({style:{fontSize:22,fontWeight:700,color:'var(--success)',margin:0}},savings.mesesAhorrados),P({style:{fontSize:10,color:'var(--txt2)',margin:0}},'meses antes')),
+          DIV({style:{textAlign:'center',padding:'8px 14px',background:'var(--bg)',borderRadius:'var(--r-md)',boxShadow:'var(--shadow)'}},P({style:{fontSize:14,fontWeight:700,color:'var(--success)',margin:0}},cop(savings.interesAhorrado)),P({style:{fontSize:10,color:'var(--txt2)',margin:0}},'en intereses'))
+        )
+      ),
+      amCred.abono===0&&DIV({style:{background:'var(--info-bg)',borderRadius:'var(--r-md)',padding:'10px 14px',marginBottom:14,fontSize:12,color:'var(--info-txt)'}},
+        '💡 Ingresa un abono extra en la columna "Abono" para simular el ahorro en intereses y cuotas. Elige si es pago mensual o único.'
+      ),
+      amRowsAbono.length>0&&DIV({style:{display:'flex',gap:4,marginBottom:10,background:'var(--bg2)',padding:4,borderRadius:'var(--r-md)',width:'fit-content',flexWrap:'wrap'}},
+        BTN({style:tabSt(amView==='original'),onClick:()=>setAmView('original')},`Sin abono (${amRows.length} cuotas)`),
+        BTN({style:{...tabSt(amView==='abono'),color:amView==='abono'?'var(--txt)':'var(--success)'},onClick:()=>setAmView('abono')},
+          (amCred.abonoTipo||'mensual')==='mensual'?`+${cop(amCred.abono)}/mes (${amRowsAbono.length} cuotas) ✓`:`+${cop(amCred.abono)} único (${amRowsAbono.length} cuotas) ✓`
+        )
+      ),
+      // ── 🆕 Simulador de cuotas ─────────────────────────────────────────
+      DIV({style:{...cCard,marginBottom:14,background:'var(--bg2)',border:'.5px solid var(--brd2)'}},
+        h('h4',{style:{fontSize:13,fontWeight:600,margin:'0 0 10px',color:'var(--info-txt)'}},'🔢 Simulador — ¿Qué pasa si cambio el número de cuotas?'),
+        DIV({style:{display:'flex',gap:10,alignItems:'flex-end',flexWrap:'wrap'}}),
+        DIV({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:12,alignItems:'end'}},
+          DIV(null,
+            LBL({style:{...cLbl,fontSize:12}},'Simular con N cuotas'),
+            DIV({style:{display:'flex',gap:8,alignItems:'center'}},
+              INP({type:'number',min:1,max:360,value:simCuotas,style:{flex:1},placeholder:`Actual: ${amRows.length} cuotas`,onChange:e=>{setSimCuotas(e.target.value);setAmView(e.target.value?'simulacion':'original');}}),
+              BTN({style:{...cBtnS,fontSize:11,padding:'6px 12px',whiteSpace:'nowrap'},onClick:()=>{setSimCuotas('');setAmView('original');}},'↺ Reset')
+            ),
+            // Atajos rápidos
+            DIV({style:{display:'flex',gap:4,marginTop:6,flexWrap:'wrap'}},
+              ...[6,12,24,36].filter(n=>n!==amRows.length).map(n=>BTN({key:n,
+                style:{...cBtnS,fontSize:11,padding:'3px 10px',minHeight:'unset',
+                  background:parseInt(simCuotas)===n?'var(--info-bg)':'transparent',
+                  color:parseInt(simCuotas)===n?'var(--info-txt)':'var(--txt)',
+                  fontWeight:parseInt(simCuotas)===n?600:400},
+                onClick:()=>{setSimCuotas(String(n));setAmView('simulacion');}
+              },String(n)))
+            )
+          ),
+          // Panel de comparación
+          simN>0&&simCompar&&DIV({style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8}},
+            DIV({style:{textAlign:'center',padding:'8px 6px',background:simCompar.cuotasDiff>0?'var(--ok-bg)':simCompar.cuotasDiff<0?'var(--danger-bg)':'var(--bg)',borderRadius:'var(--r-md)',border:'.5px solid var(--brd2)'}},
+              P({style:{fontSize:10,fontWeight:500,color:'var(--txt2)',margin:'0 0 3px'}},'CUOTAS'),
+              P({style:{fontSize:16,fontWeight:700,color:simCompar.cuotasDiff>0?'var(--success)':simCompar.cuotasDiff<0?'var(--danger)':'var(--txt)',margin:'0 0 2px'}},simN),
+              SPAN({style:{fontSize:10,color:simCompar.cuotasDiff>0?'var(--ok-txt)':simCompar.cuotasDiff<0?'var(--danger-txt)':'var(--txt3)'}},
+                simCompar.cuotasDiff>0?`−${simCompar.cuotasDiff} cuotas`:simCompar.cuotasDiff<0?`+${Math.abs(simCompar.cuotasDiff)} cuotas`:'Sin cambio')
+            ),
+            DIV({style:{textAlign:'center',padding:'8px 6px',background:simCompar.cuotaBaseDiff<0?'var(--ok-bg)':simCompar.cuotaBaseDiff>0?'var(--danger-bg)':'var(--bg)',borderRadius:'var(--r-md)',border:'.5px solid var(--brd2)'}},
+              P({style:{fontSize:10,fontWeight:500,color:'var(--txt2)',margin:'0 0 3px'}},'CUOTA/MES'),
+              P({style:{fontSize:13,fontWeight:700,color:simCompar.cuotaBaseDiff<0?'var(--success)':simCompar.cuotaBaseDiff>0?'var(--danger)':'var(--txt)',margin:'0 0 2px'}},cop(simCuotaBase)),
+              SPAN({style:{fontSize:10,color:simCompar.cuotaBaseDiff<0?'var(--ok-txt)':simCompar.cuotaBaseDiff>0?'var(--danger-txt)':'var(--txt3)'}},
+                simCompar.cuotaBaseDiff<0?`${cop(Math.abs(simCompar.cuotaBaseDiff))} menos/mes`:`${cop(Math.abs(simCompar.cuotaBaseDiff))} más/mes`)
+            ),
+            DIV({style:{textAlign:'center',padding:'8px 6px',background:simCompar.interesDiff>0?'var(--ok-bg)':simCompar.interesDiff<0?'var(--danger-bg)':'var(--bg)',borderRadius:'var(--r-md)',border:'.5px solid var(--brd2)'}},
+              P({style:{fontSize:10,fontWeight:500,color:'var(--txt2)',margin:'0 0 3px'}},'INTERÉS TOTAL'),
+              P({style:{fontSize:13,fontWeight:700,color:simCompar.interesDiff>0?'var(--success)':simCompar.interesDiff<0?'var(--danger)':'var(--txt)',margin:'0 0 2px'}},cop(amRowsSim.reduce((s,r)=>s+r.i,0))),
+              SPAN({style:{fontSize:10,color:simCompar.interesDiff>0?'var(--ok-txt)':simCompar.interesDiff<0?'var(--danger-txt)':'var(--txt3)'}},
+                simCompar.interesDiff>0?`Ahorras ${cop(simCompar.interesDiff)}`:`Pagas ${cop(Math.abs(simCompar.interesDiff))} más`)
+            )
+          )
+        )
+      ),
+      // Tab toggle
+      DIV({style:{display:'flex',gap:4,marginBottom:14,background:'var(--bg2)',padding:4,borderRadius:'var(--r-md)',flexWrap:'wrap'}},
+        BTN({style:tabSt(amView==='original'),onClick:()=>setAmView('original')},`📋 Original (${amRows.length} cuotas)`),
+        amRowsAbono.length>0&&BTN({style:{...tabSt(amView==='abono'),color:amView==='abono'?'var(--txt)':'var(--success)'},onClick:()=>setAmView('abono')},
+          (amCred.abonoTipo||'mensual')==='mensual'?`+${cop(amCred.abono)}/mes (${amRowsAbono.length}) ✓`:`+${cop(amCred.abono)} único (${amRowsAbono.length}) ✓`
+        ),
+        simN>0&&amRowsSim.length>0&&BTN({style:{...tabSt(amView==='simulacion'),color:amView==='simulacion'?'var(--txt)':'var(--info-txt)'},onClick:()=>setAmView('simulacion')},`🔢 Simulación (${simN} cuotas)`)
+      ),
+      // ── Table ─────────────────────────────────────────────────────────
+      DIV({style:{overflowX:'auto',maxHeight:380,overflowY:'auto'}},
+        TABLE({style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
+          THEAD({style:{position:'sticky',top:0,background:'var(--bg)'}},TR({style:{borderBottom:'.5px solid var(--brd)'}},
+            TH({style:{...cTh,textAlign:'right'}},'#'),TH({style:{...cTh,textAlign:'right'}},'Saldo ini.'),
+            TH({style:{...cTh,textAlign:'right'}},amView==='abono'?'Cuota+Abono':amView==='simulacion'?`Cuota (${simN} cuotas)`:'Cuota'),
+            TH({style:{...cTh,textAlign:'right'}},'Interés'),TH({style:{...cTh,textAlign:'right'}},'Capital'),TH({style:{...cTh,textAlign:'right'}},'Saldo fin.')
+          )),
+          TBODY(null,...activeSched.map(r=>TR({key:r.p,style:{borderBottom:'.5px solid var(--brd)'}},
+            TD({style:{padding:'4px 8px',textAlign:'right',color:'var(--txt2)'}},[String(r.p)]),
+            TD({style:{padding:'4px 8px',textAlign:'right'}},cop(r.s)),
+            TD({style:{padding:'4px 8px',textAlign:'right',fontWeight:500,color:amView==='abono'&&r.q>amCred.cuotaBase?'var(--teal)':amView==='simulacion'?'var(--info-txt)':'var(--txt)'}},cop(r.q)),
+            TD({style:{padding:'4px 8px',textAlign:'right',color:'var(--danger)'}},cop(r.i)),
+            TD({style:{padding:'4px 8px',textAlign:'right',color:'var(--success)'}},cop(r.k)),
+            TD({style:{padding:'4px 8px',textAlign:'right'}},cop(r.sf))
+          ))),
+          TFOOT({style:{position:'sticky',bottom:0,background:'var(--bg)'}},TR({style:{borderTop:'.5px solid var(--brd2)',background:'var(--bg2)'}},
+            TD({colSpan:2,style:{padding:'6px 8px',fontSize:11,fontWeight:600,color:'var(--txt2)',textAlign:'right'}},'TOTALES'),
+            TD({style:{padding:'6px 8px',fontWeight:600,textAlign:'right'}},cop(activeSched.reduce((s,r)=>s+r.q,0))),
+            TD({style:{padding:'6px 8px',fontWeight:600,color:'var(--danger)',textAlign:'right'}},cop(activeSched.reduce((s,r)=>s+r.i,0))),
+            TD({style:{padding:'6px 8px',fontWeight:600,color:'var(--success)',textAlign:'right'}},cop(activeSched.reduce((s,r)=>s+r.k,0))),
+            TD(null)
+          ))
+        )
+      )
+    ),
+
+    // ── Consumos TC history ───────────────────────────────────────────────
+    DIV({style:{...cCard,borderTop:'2px solid #fdeaea'}},
+      DIV({style:{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8,marginBottom:'1rem'}},
+        DIV(null,h('h3',{style:{fontSize:15,fontWeight:500,margin:'0 0 2px'}},'💳 Historial consumos tarjeta de crédito'),P({style:{fontSize:12,color:'var(--txt2)',margin:0}},'Saldo se actualiza automáticamente con cada compra registrada')),
+        h(FiltroFecha,{anos,anio,mes,setAnio,setMes})
+      ),
+      totTC>0
+        ?DIV({style:{display:'flex',flexDirection:'column',gap:10}},
+            DIV({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:8}},
+              DIV({style:{...cMC,textAlign:'center'}},P({style:{fontSize:11,color:'var(--danger-txt)',fontWeight:500,margin:'0 0 4px'}},'TOTAL TC'),P({style:{fontSize:18,fontWeight:700,color:'var(--danger)',margin:0}},cop(totTC))),
+              ...calc.creditosCalc.filter(c=>c.isTC&&consumosPorTC[c.id]).map(c=>DIV({key:c.id,style:{...cMC,textAlign:'center'}},P({style:{fontSize:11,color:'var(--txt2)',fontWeight:500,margin:'0 0 4px',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}},c.nombre),P({style:{fontSize:16,fontWeight:600,color:'var(--danger)',margin:'0 0 2px'}},cop(consumosPorTC[c.id].total)),SPAN({style:{fontSize:10,color:'var(--txt3)'}},`${consumosPorTC[c.id].items.length} transac.`)))
+            ),
+            ...calc.creditosCalc.filter(c=>c.isTC&&consumosPorTC[c.id]).map(c=>
+              DIV({key:c.id,style:{borderRadius:'var(--r-md)',border:'.5px solid var(--brd2)',overflow:'hidden'}},
+                DIV({style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 14px',background:'var(--danger-bg)',cursor:'pointer'},onClick:()=>setExpTC(expTC===c.id?null:c.id)},
+                  DIV(null,SPAN({style:{fontWeight:600,fontSize:13,color:'var(--danger-txt)'}},`💳 ${c.nombre}`),c.entidad&&SPAN({style:{fontSize:12,color:'var(--txt2)',marginLeft:8}},c.entidad)),
+                  DIV({style:{display:'flex',alignItems:'center',gap:8}},SPAN({style:{fontWeight:700,color:'var(--danger)'}},cop(consumosPorTC[c.id].total)),SPAN({style:{fontSize:11}},expTC===c.id?'▲':'▼'))
+                ),
+                expTC===c.id&&DIV({style:{overflowX:'auto'}},TABLE({style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
+                  THEAD(null,TR({style:{background:'var(--bg2)',borderBottom:'.5px solid var(--brd)'}},...['Fecha','Categoría','Descripción','Monto'].map(h2=>TH({key:h2,style:cTh},h2)))),
+                  TBODY(null,...consumosPorTC[c.id].items.sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(m=>TR({key:m.id,style:{borderBottom:'.5px solid var(--brd)'}},
+                    TD({style:{...cTd,fontSize:11,color:'var(--txt2)'}},[m.fecha]),TD({style:{...cTd,fontSize:11}},[m.categoria]),TD({style:{...cTd,fontSize:11}},[m.desc]),TD({style:{...cTd,fontWeight:600,color:'var(--danger)'}},cop(m.monto))
+                  ))),
+                  TFOOT(null,TR({style:{background:'var(--danger-bg)'}},TD({colSpan:3,style:{padding:'8px',fontSize:11,fontWeight:600,color:'var(--danger-txt)'}},'SUBTOTAL'),TD({style:{...cTd,fontWeight:700,color:'var(--danger)'}},cop(consumosPorTC[c.id].total))))
+                ))
+              )
+            )
+          )
+        :P({style:{fontSize:13,color:'var(--txt3)',padding:'1rem 0',textAlign:'center'}},'Sin consumos con Tarjeta Crédito en el período.')
+    )
+  );
+}
+
+// ── Gastos ─────────────────────────────────────────────────────────────────
+function Gastos(){
+  const{data,dispatch}=useApp();
+  const anos=useMemo(()=>anosUnicos(data.movimientos),[data.movimientos]);
+  const curY=String(new Date().getFullYear());
+  const[anio,setAnio]=useState(anos.includes(curY)?curY:(anos[0]||'todos'));
+  const[mes,setMes]=useState('todos');
+  const movsFilt=useMemo(()=>filtrarMovs(data.movimientos,anio,mes,'todos','todas','todos'),[data.movimientos,anio,mes]);
+  const reales=useMemo(()=>{const m={};movsFilt.filter(x=>x.tipo==='Gasto').forEach(x=>{m[x.categoria]=(m[x.categoria]||0)+x.monto;});return m;},[movsFilt]);
+  const totPres=data.categorias.reduce((s,c)=>s+c.presupuesto,0),totReal=Object.values(reales).reduce((s,v)=>s+v,0),balance=totPres-totReal;
+  return DIV({style:{display:'flex',flexDirection:'column',gap:'1.5rem'}},
+    DIV({style:{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8}},h(SecTitle,{title:'Presupuesto vs gastos reales'}),h(FiltroFecha,{anos,anio,mes,setAnio,setMes})),
+    DIV({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(130px,1fr))',gap:10}},
+      DIV({style:{...cMC,textAlign:'center'}},P({style:{fontSize:11,color:'var(--blue)',fontWeight:500,margin:'0 0 4px'}},'PRESUPUESTO'),P({style:{fontSize:18,fontWeight:600,color:'var(--blue)',margin:0}},cop(totPres))),
+      DIV({style:{...cMC,textAlign:'center'}},P({style:{fontSize:11,color:'var(--danger)',fontWeight:500,margin:'0 0 4px'}},'GASTO REAL'),P({style:{fontSize:18,fontWeight:600,color:'var(--danger)',margin:0}},cop(totReal))),
+      DIV({style:{...cMC,textAlign:'center'}},P({style:{fontSize:11,color:balance>=0?'var(--ok-txt)':'var(--danger-txt)',fontWeight:500,margin:'0 0 4px'}},'BALANCE'),P({style:{fontSize:18,fontWeight:600,color:balance>=0?'var(--ok-txt)':'var(--danger-txt)',margin:'0 0 2px'}},(balance>=0?'+':'')+cop(balance)),SPAN({style:{...bdg(balance>=0?'ok':balance>-200000?'warn':'danger'),fontSize:10}},balance>=0?'Dentro':'Excedido')),
+      DIV({style:{...cMC,textAlign:'center'}},P({style:{fontSize:11,fontWeight:500,margin:'0 0 4px'}},'EJECUCIÓN'),P({style:{fontSize:18,fontWeight:600,margin:0}},totPres>0?pct(totReal/totPres):'—'))
+    ),
+    DIV({style:cCard},h(SecTitle,{title:'Comparativo por categoría'}),h(BarChart,{height:230,labels:data.categorias.map(c=>c.nombre),datasets:[{label:'Presupuesto',data:data.categorias.map(c=>c.presupuesto),backgroundColor:'#378ADD'},{label:'Real',data:data.categorias.map(c=>reales[c.nombre]||0),backgroundColor:'#1D9E75'}]})),
+    DIV({style:cCard},DIV({style:{overflowX:'auto'}},TABLE({style:{width:'100%',borderCollapse:'collapse',fontSize:13}},
+      THEAD(null,TR({style:{borderBottom:'.5px solid var(--brd)'}},...['Categoría','Tipo','Presupuesto ($)','Real ($)','Estado','% Ejec.'].map(h2=>TH({key:h2,style:cTh},h2)))),
+      TBODY(null,...data.categorias.map(c=>{const real=reales[c.nombre]||0,ejec=c.presupuesto>0?real/c.presupuesto:0,st=ejec===0?'ok':ejec>1.1?'danger':ejec>.9?'warn':'ok';
+        return TR({key:c.nombre,style:{borderBottom:'.5px solid var(--brd)'}},
+          TD({style:{...cTd,fontWeight:500}},[c.nombre]),TD({style:{...cTd,fontSize:12,color:'var(--txt2)'}},[c.tipo]),
+          TD({style:cTd},INP({type:'number',value:c.presupuesto,onChange:e=>dispatch({type:'UPD_CAT',nombre:c.nombre,val:+e.target.value||0})})),
+          TD({style:cTd},real>0?cop(real):SPAN({style:{color:'var(--txt3)'}},'—')),
+          TD({style:cTd},SPAN({style:bdg(st)},ejec===0?'Sin reg.':ejec>1.1?'Excedido':ejec>.9?'En límite':'OK')),
+          TD({style:{...cTd,minWidth:90}},h(BarProg,{val:real,max:c.presupuesto,color:ejec>1?'var(--coral)':'var(--teal)'}),SPAN({style:{fontSize:10,color:'var(--txt3)'}},pct(ejec)))
+        );
+      })),
+      TFOOT(null,TR({style:{borderTop:'1.5px solid var(--brd2)',background:'var(--bg2)'}},
+        TD({style:{padding:'8px',fontSize:12,color:'var(--txt2)',fontWeight:600}},'TOTAL'),TD(null),
+        TD({style:{...cTd,fontWeight:600,color:'var(--blue)'}},cop(totPres)),TD({style:{...cTd,fontWeight:600,color:'var(--danger)'}},cop(totReal)),
+        TD({style:cTd},SPAN({style:bdg(balance>=0?'ok':balance>-200000?'warn':'danger')},balance>=0?'OK':'Excedido')),
+        TD({style:{...cTd,fontWeight:600}},totPres>0?pct(totReal/totPres):'—')
+      ))
+    )))
+  );
+}
+
+// ── Movimientos ────────────────────────────────────────────────────────────
+function Movimientos(){
+  const{data,dispatch}=useApp();
+  const EMPTY={fecha:new Date().toISOString().split('T')[0],tipo:'Gasto',categoria:'Alimentación',desc:'',monto:'',medioPago:'Efectivo',creditoId:''};
+  const[fv,setFv]=useState(EMPTY);const sv=k=>e=>setFv(f=>({...f,[k]:e.target.value}));
+  const anos=useMemo(()=>anosUnicos(data.movimientos),[data.movimientos]);
+  const curY=String(new Date().getFullYear());
+  const[anio,setAnio]=useState(anos.includes(curY)?curY:(anos[0]||'todos'));
+  const[mes,setMes]=useState('todos');
+  const[filtTipo,setFiltTipo]=useState('todos');
+  const[filtCat,setFiltCat]=useState('todas');
+  const[filtMedio,setFiltMedio]=useState('todos');
+  const[editId,setEditId]=useState(null);const[eData,setEData]=useState({});
+  const movsFilt=useMemo(()=>filtrarMovs(data.movimientos,anio,mes,filtTipo,filtCat,filtMedio),[data.movimientos,anio,mes,filtTipo,filtCat,filtMedio]);
+  const sorted=[...movsFilt].sort((a,b)=>b.fecha.localeCompare(a.fecha));
+  const consolidado=useMemo(()=>{const t={};movsFilt.forEach(m=>{t[m.tipo]=(t[m.tipo]||0)+m.monto;});return t;},[movsFilt]);
+  const byMedio=useMemo(()=>{const m={};movsFilt.filter(x=>x.tipo==='Gasto').forEach(x=>{const k=x.medioPago||'Efectivo';m[k]=(m[k]||0)+x.monto;});return m;},[movsFilt]);
+
+  // TC cards only (for TC purchases)
+  const credTC=data.creditos.filter(c=>c.saldo>0&&(c.tipoProducto||'')==='Tarjeta de Crédito');
+  // All credits (for cuota crédito payments)
+  const credAll=data.creditos.filter(c=>c.saldo>0);
+  const catOpts=[...new Set([...CATS,...data.movimientos.map(m=>m.categoria)])].sort();
+  const periodLabel=anio==='todos'&&mes==='todos'?'Todo el período':anio!=='todos'&&mes!=='todos'?`${MON_FULL[parseInt(mes)-1]} ${anio}`:anio!=='todos'?`Año ${anio}`:MON_FULL[parseInt(mes)-1];
+  const mediosFv=getMedios(fv.tipo),mediosEd=getMedios(eData.tipo||'Gasto');
+  const medioBgs={'Efectivo':'var(--cash-bg)','Tarjeta Débito':'var(--debit-bg)','PSE':'var(--pse-bg)','Tarjeta Crédito':'var(--danger-bg)','Ingreso Cuenta Bancaria':'var(--ok-bg)','Transferencia':'var(--info-bg)'};
+  const medioCls={'Efectivo':'var(--cash-txt)','Tarjeta Débito':'var(--debit-txt)','PSE':'var(--pse-txt)','Tarjeta Crédito':'var(--danger-txt)','Ingreso Cuenta Bancaria':'var(--ok-txt)','Transferencia':'var(--info-txt)'};
+
+  function doAdd(){if(!fv.monto||!fv.desc)return;dispatch({type:'ADD_MOV',mov:{...fv,monto:Math.abs(parseFloat(fv.monto)||0),creditoId:fv.creditoId?parseInt(fv.creditoId):null}});setFv(EMPTY);}
+  function abrirEdit(m){setEditId(m.id);setEData({fecha:m.fecha,tipo:m.tipo,categoria:m.categoria,desc:m.desc,monto:String(m.monto),medioPago:m.medioPago||'Efectivo',creditoId:m.creditoId?String(m.creditoId):''});}
+  function guardarEdit(){dispatch({type:'SAVE_MOV',id:editId,data:{...eData,monto:Math.abs(parseFloat(eData.monto)||0),creditoId:eData.creditoId?parseInt(eData.creditoId):null}});setEditId(null);}
+
+  // Auto-update hint
+  function autoHint(tipo,categoria,medioPago,creditoId,credOpts){
+    const cred=creditoId?credOpts.find(c=>String(c.id)===String(creditoId)):null;
+    if(tipo==='Gasto'&&medioPago==='Tarjeta Crédito'&&cred)
+      return DIV({style:{background:'var(--danger-bg)',borderRadius:'var(--r-sm)',padding:'6px 10px',fontSize:11,color:'var(--danger-txt)',marginTop:4}},`⚡ Se sumará al saldo de ${cred.nombre} (${cop(cred.saldo)} actual)`);
+    if(categoria==='Cuota crédito'&&cred)
+      return DIV({style:{background:'var(--ok-bg)',borderRadius:'var(--r-sm)',padding:'6px 10px',fontSize:11,color:'var(--ok-txt)',marginTop:4}},`⚡ Reducirá el saldo de ${cred.nombre} (${cop(cred.saldo)} → ${cop(Math.max(0,cred.saldo-(parseFloat(fv.monto)||0)))})`);
+    return null;
+  }
+
+  // Credit selector to show based on movement type
+  function credSelector(tipo,categoria,medioPago,creditoIdVal,onChange){
+    const showTC=medioPago==='Tarjeta Crédito'&&credTC.length>0;
+    const showAll=categoria==='Cuota crédito'&&!showTC&&credAll.length>0;
+    if(!showTC&&!showAll)return DIV(null);
+    const opts=showTC?credTC:credAll;
+    return DIV(null,
+      LBL({style:cLbl},showTC?'¿Cuál tarjeta de crédito?':'Crédito al que aplica el pago'),
+      SEL({value:creditoIdVal,style:{borderColor:showTC?'var(--danger)':'var(--teal)'},onChange},
+        OPT({value:''},'— Selecciona —'),
+        ...opts.map(c=>OPT({key:c.id,value:String(c.id)},`${c.nombre} · ${c.entidad||'personal'} · ${cop(c.saldo)}`))
+      )
+    );
+  }
+
+  return DIV({style:{display:'flex',flexDirection:'column',gap:'1.5rem'}},
+    h(SecTitle,{title:'Registro de movimientos'}),
+    DIV({style:cCard},h(SecTitle,{title:'Nuevo movimiento',sub:'Las compras TC suman al saldo · Los pagos "Cuota crédito" restan automáticamente'}),
+      DIV({style:cG3},
+        DIV(null,LBL({style:cLbl},'Fecha'),INP({type:'date',value:fv.fecha,onChange:sv('fecha')})),
+        DIV(null,LBL({style:cLbl},'Tipo'),SEL({value:fv.tipo,onChange:e=>{const t=e.target.value,ms=getMedios(t);setFv(f=>({...f,tipo:t,medioPago:ms.includes(f.medioPago)?f.medioPago:ms[0],creditoId:''}));}},TIPOS_MOV.map(o=>OPT({key:o},o)))),
+        DIV(null,LBL({style:cLbl},'Categoría'),SEL({value:fv.categoria,onChange:sv('categoria')},...catOpts.map(o=>OPT({key:o},o)))),
+        DIV(null,LBL({style:cLbl},'Descripción'),INP({value:fv.desc,onChange:sv('desc'),placeholder:'Descripción'})),
+        DIV(null,LBL({style:cLbl},'Monto ($)'),INP({type:'number',value:fv.monto,onChange:sv('monto'),placeholder:'250000'})),
+        DIV(null,LBL({style:cLbl},'Medio de pago'),SEL({value:fv.medioPago,style:{borderColor:fv.medioPago==='Tarjeta Crédito'?'var(--danger)':undefined},onChange:e=>setFv(f=>({...f,medioPago:e.target.value,creditoId:''}))},...mediosFv.map(o=>OPT({key:o},o)))),
+        credSelector(fv.tipo,fv.categoria,fv.medioPago,fv.creditoId,e=>setFv(f=>({...f,creditoId:e.target.value}))),
+        DIV(null,autoHint(fv.tipo,fv.categoria,fv.medioPago,fv.creditoId,[...credTC,...credAll]),BTN({style:{...cBtnS,width:'100%',marginTop:4},onClick:doAdd},'+ Registrar'))
+      )
+    ),
+    editId!==null&&DIV({style:{...cCard,border:'1.5px solid var(--teal)',background:'#f0faf6'}},
+      DIV({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem'}},h(SecTitle,{title:'✏️ Editando movimiento'}),BTN({style:cBtnS,onClick:()=>setEditId(null)},'✕')),
+      DIV({style:cG3},
+        DIV(null,LBL({style:cLbl},'Fecha'),INP({type:'date',value:eData.fecha||'',onChange:e=>setEData(d=>({...d,fecha:e.target.value}))})),
+        DIV(null,LBL({style:cLbl},'Tipo'),SEL({value:eData.tipo||'',onChange:e=>{const t=e.target.value,ms=getMedios(t);setEData(d=>({...d,tipo:t,medioPago:ms.includes(d.medioPago)?d.medioPago:ms[0],creditoId:''}));}},TIPOS_MOV.map(o=>OPT({key:o},o)))),
+        DIV(null,LBL({style:cLbl},'Categoría'),SEL({value:eData.categoria||'',onChange:e=>setEData(d=>({...d,categoria:e.target.value}))},...catOpts.map(o=>OPT({key:o},o)))),
+        DIV(null,LBL({style:cLbl},'Descripción'),INP({value:eData.desc||'',onChange:e=>setEData(d=>({...d,desc:e.target.value}))})),
+        DIV(null,LBL({style:cLbl},'Monto ($)'),INP({type:'number',value:eData.monto||'',onChange:e=>setEData(d=>({...d,monto:e.target.value}))})),
+        DIV(null,LBL({style:cLbl},'Medio de pago'),SEL({value:eData.medioPago||'Efectivo',style:{borderColor:eData.medioPago==='Tarjeta Crédito'?'var(--danger)':undefined},onChange:e=>setEData(d=>({...d,medioPago:e.target.value,creditoId:''}))},...mediosEd.map(o=>OPT({key:o},o)))),
+        credSelector(eData.tipo,eData.categoria,eData.medioPago,eData.creditoId||'',e=>setEData(d=>({...d,creditoId:e.target.value}))),
+        DIV({style:{display:'flex',alignItems:'flex-end'}},BTN({style:{padding:'8px 14px',borderRadius:'var(--r-md)',fontSize:13,border:'none',background:'var(--teal)',color:'#fff',fontWeight:500,width:'100%',cursor:'pointer'},onClick:guardarEdit},'✓ Guardar'))
+      )
+    ),
+    DIV({style:{...cCard,padding:'.9rem 1.25rem'}},
+      DIV({style:{display:'flex',flexDirection:'column',gap:10}},
+        DIV({style:{display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:8}},SPAN({style:{fontSize:13,fontWeight:500}},'Filtros'),h(FiltroFecha,{anos,anio,mes,setAnio,setMes})),
+        DIV({style:{display:'flex',gap:8,flexWrap:'wrap',alignItems:'center'}},
+          DIV({style:{display:'flex',gap:5,alignItems:'center'}},SPAN({style:{fontSize:12,color:'var(--txt3)'}},'Tipo:'),SEL({style:{width:'auto',minWidth:125,fontSize:12,padding:'4px 6px'},value:filtTipo,onChange:e=>setFiltTipo(e.target.value)},OPT({value:'todos'},'Todos'),...TIPOS_MOV.map(o=>OPT({key:o,value:o},o)))),
+          DIV({style:{display:'flex',gap:5,alignItems:'center'}},SPAN({style:{fontSize:12,color:'var(--txt3)'}},'Cat.:'),SEL({style:{width:'auto',minWidth:130,fontSize:12,padding:'4px 6px'},value:filtCat,onChange:e=>setFiltCat(e.target.value)},OPT({value:'todas'},'Todas'),...catOpts.map(o=>OPT({key:o,value:o},o)))),
+          DIV({style:{display:'flex',gap:5,alignItems:'center'}},SPAN({style:{fontSize:12,color:'var(--txt3)'}},'Medio:'),SEL({style:{width:'auto',minWidth:158,fontSize:12,padding:'4px 6px'},value:filtMedio,onChange:e=>setFiltMedio(e.target.value)},OPT({value:'todos'},'Todos'),...MEDIOS_ALL.map(o=>OPT({key:o,value:o},o)))),
+          (filtTipo!=='todos'||filtCat!=='todas'||filtMedio!=='todos')&&BTN({style:{...cBtnS,fontSize:11,padding:'3px 9px',color:'var(--txt3)'},onClick:()=>{setFiltTipo('todos');setFiltCat('todas');setFiltMedio('todos');}},'✕ Limpiar')
+        )
+      )
+    ),
+    h(ResumenConsolidado,{movs:movsFilt,label:`Consolidado — ${periodLabel}`}),
+    Object.keys(byMedio).length>0&&DIV({style:{...cCard,padding:'.9rem 1.25rem'}},
+      P({style:{fontSize:12,fontWeight:500,color:'var(--txt2)',margin:'0 0 10px',textTransform:'uppercase',letterSpacing:.4}},'Gastos por medio de pago'),
+      DIV({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(120px,1fr))',gap:8}},
+        ...Object.entries(byMedio).map(([medio,total])=>{const tG=Object.values(byMedio).reduce((s,v)=>s+v,0),p=tG>0?((total/tG)*100).toFixed(1):0;
+          return DIV({key:medio,style:{textAlign:'center',padding:'10px 8px',background:medioBgs[medio]||'var(--bg2)',borderRadius:'var(--r-md)'}},
+            h(MedioBadge,{medio}),P({style:{fontSize:15,fontWeight:600,color:medioCls[medio]||'var(--txt)',margin:'6px 0 2px'}},cop(total)),SPAN({style:{fontSize:11,color:'var(--txt3)'}},`${p}%`)
+          );
+        })
+      )
+    ),
+    DIV({style:cCard},
+      DIV({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem',flexWrap:'wrap',gap:8}},h(SecTitle,{title:`Movimientos (${sorted.length} / ${data.movimientos.length})`}),movsFilt.length!==data.movimientos.length&&SPAN({style:{...bdg('info'),fontSize:11}},'Filtro activo')),
+      DIV({style:{overflowX:'auto',maxHeight:460,overflowY:'auto'}},
+        TABLE({style:{width:'100%',borderCollapse:'collapse',fontSize:13}},
+          THEAD({style:{position:'sticky',top:0,background:'var(--bg)',zIndex:1}},TR({style:{borderBottom:'.5px solid var(--brd)'}},...['Fecha','Tipo','Cat.','Descripción','Medio','Monto',''].map(h2=>TH({key:h2,style:cTh},h2)))),
+          TBODY(null,sorted.length===0?TR(null,TD({colSpan:7,style:{textAlign:'center',padding:'2rem',color:'var(--txt3)'}},'Sin movimientos para los filtros seleccionados')):
+            sorted.map(m=>{const cred=m.creditoId?data.creditos.find(c=>c.id===m.creditoId):null;
+              return TR({key:m.id,style:{borderBottom:'.5px solid var(--brd)',background:editId===m.id?'#f0faf6':'transparent'}},
+                TD({style:{...cTd,fontSize:12,color:'var(--txt2)'}},[m.fecha]),
+                TD({style:cTd},SPAN({style:bdg(m.tipo==='Ingreso'?'ok':'warn')},m.tipo)),
+                TD({style:{...cTd,color:'var(--txt2)',fontSize:12}},[m.categoria]),
+                TD({style:cTd},[m.desc]),
+                TD({style:cTd},DIV(null,h(MedioBadge,{medio:m.medioPago||'Efectivo'}),cred&&P({style:{fontSize:10,color:'var(--txt3)',margin:'2px 0 0'}},cred.nombre))),
+                TD({style:{...cTd,fontWeight:500,color:m.tipo==='Ingreso'?'var(--success)':'var(--danger)'}},`${m.tipo==='Ingreso'?'+':'-'}${cop(m.monto)}`),
+                TD({style:{...cTd,whiteSpace:'nowrap'}},
+                  BTN({style:{...cBtnS,fontSize:11,padding:'3px 9px',marginRight:4,background:editId===m.id?'var(--teal)':'transparent',color:editId===m.id?'#fff':'var(--txt)'},onClick:()=>abrirEdit(m)},'✏️'),
+                  BTN({style:{...cBtnD,fontSize:11,padding:'3px 8px'},onClick:()=>dispatch({type:'DEL_MOV',id:m.id})},'✕')
+                )
+              );
+            })
+          ),
+          sorted.length>0&&TFOOT(null,
+            TR({style:{borderTop:'1.5px solid var(--brd2)',background:'var(--bg2)'}},TD({colSpan:4,style:{padding:'8px',fontSize:12,fontWeight:600,color:'var(--txt2)'}},'TOTALES'),TD(null),TD(null),TD(null)),
+            ...Object.entries(consolidado).map(([tipo,total])=>TR({key:tipo,style:{background:'var(--bg2)',borderBottom:'.5px solid var(--brd)'}},
+              TD({colSpan:4,style:{padding:'5px 8px 5px 20px'}},SPAN({style:bdg(tipo==='Ingreso'?'ok':'warn')},tipo)),TD(null),
+              TD({style:{...cTd,fontWeight:600,color:tipo==='Ingreso'?'var(--success)':'var(--danger)'}},`${tipo==='Ingreso'?'+':'-'}${cop(total)}`),TD(null)
+            )),
+            TR({style:{background:'var(--bg2)',borderTop:'1px dashed var(--brd2)'}},
+              TD({colSpan:4,style:{padding:'8px 8px 8px 20px',fontSize:12,fontWeight:600}},'NETO'),TD(null),
+              TD({style:{...cTd,fontWeight:700,fontSize:13,color:(consolidado['Ingreso']||0)-(consolidado['Gasto']||0)>=0?'var(--success)':'var(--danger)'}},
+                (v=>(v>=0?'+':'')+cop(v))((consolidado['Ingreso']||0)-(consolidado['Gasto']||0))),TD(null)
+            )
+          )
+        )
+      )
+    )
+  );
+}
+
+// ── Ahorro ─────────────────────────────────────────────────────────────────
+function Ahorro(){
+  const{data,calc,dispatch}=useApp();const{ahorro}=data;
+  const mesesMeta=useMemo(()=>{let s=ahorro.saldoInicial,r=mrFn(ahorro.tasaEA),m=0;while(s<ahorro.meta&&m<360){s=s*(1+r)+ahorro.cuota;m++;}return s>=ahorro.meta?m:null;},[ahorro]);
+  const labels=calc.ahorroProj.slice(0,13).map((_,i)=>i===0?'Hoy':MON[i-1]);
+  const fld=(lb,key,extra={})=>DIV(null,LBL({style:cLbl},lb),INP({type:'number',...extra,value:key==='tasaEA'?(ahorro.tasaEA*100).toFixed(1):ahorro[key],onChange:e=>dispatch({type:'UPD_AHORRO',key,val:key==='tasaEA'?(+e.target.value||0)/100:(+e.target.value||0)})}));
+  return DIV({style:{display:'flex',flexDirection:'column',gap:'1.5rem'}},
+    h(SecTitle,{title:'Programa de ahorro'}),
+    DIV({style:cG2},h(MCard,{label:'Saldo actual',value:cop(calc.saldoAhorroActual),sub:`${pct(calc.saldoAhorroActual/ahorro.meta)} de meta`}),h(MCard,{label:'Meta',value:cop(ahorro.meta),sub:`Faltan ${cop(ahorro.meta-calc.saldoAhorroActual)}`}),h(MCard,{label:'Cuota mensual',value:cop(ahorro.cuota)}),h(MCard,{label:'Meses para meta',value:mesesMeta?`${mesesMeta} meses`:'Ajusta cuota',color:mesesMeta&&mesesMeta<24?'var(--success)':'var(--warning)',sub:`Tasa ${pct(ahorro.tasaEA)} EA`})),
+    DIV({style:cCard},h(SecTitle,{title:'Progreso'}),h(BarProg,{val:calc.saldoAhorroActual,max:ahorro.meta}),DIV({style:{display:'flex',justifyContent:'space-between',fontSize:12,color:'var(--txt2)',marginTop:6}},SPAN(null,cop(calc.saldoAhorroActual)),SPAN(null,`Meta: ${cop(ahorro.meta)}`))),
+    DIV({style:cCard},h(SecTitle,{title:'Proyección 12 meses'}),h(LineChart,{labels,datasets:[{label:'Saldo',data:calc.ahorroProj.slice(0,13).map(a=>a.saldo),borderColor:'#1D9E75',backgroundColor:'rgba(29,158,117,.08)'},{label:'Meta',data:Array(13).fill(ahorro.meta),borderColor:'#BA7517',backgroundColor:'transparent',borderDash:[6,4],pointRadius:0}]})),
+    DIV({style:cCard},h(SecTitle,{title:'Parámetros'}),DIV({style:cG3},fld('Saldo inicial ($)','saldoInicial'),fld('Cuota mensual ($)','cuota'),fld('Meta ($)','meta'),fld('Tasa EA (%)','tasaEA',{step:'.1'})))
+  );
+}
+
+// ── Inversiones ────────────────────────────────────────────────────────────
+function Inversiones(){
+  const{data,calc,dispatch}=useApp();const{inversiones:inv,params}=data;
+  const[sub,setSub]=useState('cdts');
+  const[cf,setCf]=useState({entidad:'',monto:'',tasaEA:'',plazoMeses:'12',fechaInicio:new Date().toISOString().split('T')[0]});
+  const[df,setDf]=useState({desc:'',cantidadUSD:'',trmCompra:''});
+  const[af,setAf]=useState({ticker:'',mercado:'BVC',nombre:'',precioCompra:'',precioActual:'',cantidad:'',dividendosCOP:'0'});
+  const[crf,setCrf]=useState({symbol:'BTC',nombre:'Bitcoin',cantidadUnits:'',precioCompraUSD:'',precioActualUSD:''});
+  const[busq,setBusq]=useState('');const[showSug,setShowSug]=useState(false);
+  const STOCKS=[{ticker:'PFBCOLOM',mercado:'BVC',nombre:'Bancolombia Pref.'},{ticker:'ECOPETL',mercado:'BVC',nombre:'Ecopetrol'},{ticker:'ISA',mercado:'BVC',nombre:'ISA'},{ticker:'NUTRESA',mercado:'BVC',nombre:'Nutresa'},{ticker:'CELSIA',mercado:'BVC',nombre:'Celsia'},{ticker:'AAPL',mercado:'NASDAQ',nombre:'Apple Inc.'},{ticker:'MSFT',mercado:'NASDAQ',nombre:'Microsoft'},{ticker:'GOOGL',mercado:'NASDAQ',nombre:'Alphabet'},{ticker:'AMZN',mercado:'NASDAQ',nombre:'Amazon'},{ticker:'NVDA',mercado:'NASDAQ',nombre:'NVIDIA'},{ticker:'META',mercado:'NASDAQ',nombre:'Meta'},{ticker:'TSLA',mercado:'NASDAQ',nombre:'Tesla'},{ticker:'JPM',mercado:'NYSE',nombre:'JPMorgan'},{ticker:'V',mercado:'NYSE',nombre:'Visa'}];
+  const sugs=busq.length>=1?STOCKS.filter(s=>s.ticker.toLowerCase().includes(busq.toLowerCase())||s.nombre.toLowerCase().includes(busq.toLowerCase())).slice(0,8):[];
+  const cdtVal=c=>{const d=Math.max(0,(Date.now()-new Date(c.fechaInicio))/864e5);return c.monto*Math.pow(1+c.tasaEA,d/365);};
+  const pieVals=[calc.totalCDT,calc.totalDolares,calc.totalAcciones,calc.totalCrypto].filter(v=>v>0).map(v=>Math.round(v));
+  const pieL=['CDTs','Dólares','Acciones','Crypto'].filter((_,i)=>[calc.totalCDT,calc.totalDolares,calc.totalAcciones,calc.totalCrypto][i]>0);
+  return DIV({style:{display:'flex',flexDirection:'column',gap:'1.5rem'}},
+    h(SecTitle,{title:'Portafolio de inversiones',sub:'CDTs · Dólares · Acciones · Criptomonedas'}),
+    DIV({style:cG2},h(MCard,{label:'Total portafolio',value:cop(calc.totalPortafolio),color:'var(--success)'}),h(MCard,{label:'CDTs',value:cop(calc.totalCDT),sub:`${inv.cdts.length} cert.`}),h(MCard,{label:'Dólares',value:cop(calc.totalDolares),sub:`TRM ${cop(params.trm)}`}),h(MCard,{label:'Acciones',value:cop(calc.totalAcciones),sub:`${inv.acciones.length} pos.`}),h(MCard,{label:'Crypto',value:cop(calc.totalCrypto),color:'var(--crypto-txt)',sub:`${(inv.crypto||[]).length} activos`})),
+    pieVals.some(v=>v>0)&&DIV({style:cCard},h(SecTitle,{title:'Distribución portafolio (% y valor)'}),h(DonutChart,{labels:pieL,data:pieVals,height:160})),
+    DIV({style:{display:'flex',gap:4,background:'var(--bg2)',padding:4,borderRadius:'var(--r-lg)',width:'fit-content',flexWrap:'wrap'}},
+      ...['cdts','dolares','acciones','crypto'].map(s=>BTN({key:s,style:tabSt(sub===s),onClick:()=>setSub(s)},s==='cdts'?'CDTs':s==='dolares'?'Dólares':s==='acciones'?'Acciones':'₿ Crypto'))
+    ),
+    sub==='cdts'&&DIV({style:{display:'flex',flexDirection:'column',gap:'1rem'}},
+      DIV({style:cCard},h(SecTitle,{title:'Nuevo CDT'}),DIV({style:cG3},
+        DIV(null,LBL({style:cLbl},'Entidad'),INP({value:cf.entidad,onChange:e=>setCf(c=>({...c,entidad:e.target.value})),placeholder:'Bancolombia'})),
+        DIV(null,LBL({style:cLbl},'Monto ($)'),INP({type:'number',value:cf.monto,onChange:e=>setCf(c=>({...c,monto:e.target.value}))})),
+        DIV(null,LBL({style:cLbl},'Tasa EA (%)'),INP({type:'number',step:'.1',value:cf.tasaEA,onChange:e=>setCf(c=>({...c,tasaEA:e.target.value}))})),
+        DIV(null,LBL({style:cLbl},'Plazo (meses)'),INP({type:'number',value:cf.plazoMeses,onChange:e=>setCf(c=>({...c,plazoMeses:e.target.value}))})),
+        DIV(null,LBL({style:cLbl},'Fecha inicio'),INP({type:'date',value:cf.fechaInicio,onChange:e=>setCf(c=>({...c,fechaInicio:e.target.value}))})),
+        DIV({style:{display:'flex',alignItems:'flex-end'}},BTN({style:{...cBtnS,width:'100%'},onClick:()=>{if(!cf.entidad||!cf.monto||!cf.tasaEA)return;dispatch({type:'ADD_CDT',cdt:{entidad:cf.entidad,monto:+cf.monto,tasaEA:+cf.tasaEA/100,plazoMeses:+cf.plazoMeses,fechaInicio:cf.fechaInicio}});setCf({entidad:'',monto:'',tasaEA:'',plazoMeses:'12',fechaInicio:new Date().toISOString().split('T')[0]});}},'+ Agregar CDT'))
+      )),
+      DIV({style:cCard},DIV({style:{overflowX:'auto'}},TABLE({style:{width:'100%',borderCollapse:'collapse',fontSize:13}},
+        THEAD(null,TR({style:{borderBottom:'.5px solid var(--brd)'}},...['Entidad','Monto','Tasa','Plazo','Inicio','Valor actual','Ganancia','Rend.',''].map(h2=>TH({key:h2,style:cTh},h2)))),
+        TBODY(null,...inv.cdts.map(c=>{const val=cdtVal(c),gan=val-c.monto,rend=c.monto>0?gan/c.monto:0;
+          return TR({key:c.id,style:{borderBottom:'.5px solid var(--brd)'}},TD({style:{...cTd,fontWeight:500}},[c.entidad]),TD({style:cTd},cop(c.monto)),TD({style:cTd},pct(c.tasaEA)),TD({style:cTd},`${c.plazoMeses}m`),TD({style:{...cTd,fontSize:12,color:'var(--txt2)'}},[c.fechaInicio]),TD({style:{...cTd,fontWeight:500}},cop(val)),TD({style:{...cTd,color:gan>=0?'var(--success)':'var(--danger)'}},`${gan>=0?'+':''}${cop(gan)}`),TD({style:cTd},SPAN({style:bdg(rend>=0?'ok':'danger')},pct(rend))),TD({style:cTd},BTN({style:{...cBtnD,fontSize:11,padding:'2px 6px'},onClick:()=>dispatch({type:'DEL_CDT',id:c.id})},'✕')));
+        }))
+      )))
+    ),
+    sub==='dolares'&&DIV({style:{display:'flex',flexDirection:'column',gap:'1rem'}},
+      DIV({style:cCard},h(SecTitle,{title:'Nueva posición USD',sub:`TRM actual: ${cop(params.trm)}`}),DIV({style:cG3},
+        DIV(null,LBL({style:cLbl},'Descripción'),INP({value:df.desc,onChange:e=>setDf(d=>({...d,desc:e.target.value})),placeholder:'Ahorro USD'})),
+        DIV(null,LBL({style:cLbl},'Cantidad (USD)'),INP({type:'number',value:df.cantidadUSD,onChange:e=>setDf(d=>({...d,cantidadUSD:e.target.value}))})),
+        DIV(null,LBL({style:cLbl},'TRM de compra'),INP({type:'number',value:df.trmCompra,onChange:e=>setDf(d=>({...d,trmCompra:e.target.value}))})),
+        DIV({style:{display:'flex',alignItems:'flex-end'}},BTN({style:{...cBtnS,width:'100%'},onClick:()=>{if(!df.desc||!df.cantidadUSD||!df.trmCompra)return;dispatch({type:'ADD_DOLAR',d:{desc:df.desc,cantidadUSD:+df.cantidadUSD,trmCompra:+df.trmCompra}});setDf({desc:'',cantidadUSD:'',trmCompra:''});}},'+ Agregar'))
+      )),
+      DIV({style:cCard},DIV({style:{overflowX:'auto'}},TABLE({style:{width:'100%',borderCollapse:'collapse',fontSize:13}},
+        THEAD(null,TR({style:{borderBottom:'.5px solid var(--brd)'}},...['Desc.','USD','TRM compra','Valor COP','G/P','Rend.',''].map(h2=>TH({key:h2,style:cTh},h2)))),
+        TBODY(null,...inv.dolares.map(d=>{const vA=d.cantidadUSD*params.trm,gan=d.cantidadUSD*(params.trm-d.trmCompra),rend=d.cantidadUSD*d.trmCompra>0?gan/(d.cantidadUSD*d.trmCompra):0;
+          return TR({key:d.id,style:{borderBottom:'.5px solid var(--brd)'}},TD({style:{...cTd,fontWeight:500}},[d.desc]),TD({style:cTd},`USD ${d.cantidadUSD}`),TD({style:cTd},cop(d.trmCompra)),TD({style:{...cTd,fontWeight:500}},cop(vA)),TD({style:{...cTd,color:gan>=0?'var(--success)':'var(--danger)'}},`${gan>=0?'+':''}${cop(gan)}`),TD({style:cTd},SPAN({style:bdg(rend>=0?'ok':'danger')},pct(rend))),TD({style:cTd},BTN({style:{...cBtnD,fontSize:11,padding:'2px 6px'},onClick:()=>dispatch({type:'DEL_DOLAR',id:d.id})},'✕')));
+        }))
+      )))
+    ),
+    sub==='acciones'&&DIV({style:{display:'flex',flexDirection:'column',gap:'1rem'}},
+      DIV({style:cCard},h(SecTitle,{title:'Nueva posición — acciones'}),
+        DIV({style:{marginBottom:12,position:'relative'}},LBL({style:cLbl},'🔍 Buscar empresa o ticker'),
+          INP({value:busq,onChange:e=>{setBusq(e.target.value);setShowSug(true);},onFocus:()=>setShowSug(true),placeholder:'Ej: Bancolombia, AAPL…'}),
+          showSug&&sugs.length>0&&DIV({style:{position:'absolute',top:'100%',left:0,right:0,background:'var(--bg)',border:'.5px solid var(--brd2)',borderRadius:'var(--r-md)',boxShadow:'0 4px 16px rgba(0,0,0,.1)',zIndex:100,maxHeight:220,overflowY:'auto'}},
+            ...sugs.map(s=>DIV({key:s.ticker,onClick:()=>{setAf(a=>({...a,ticker:s.ticker,mercado:s.mercado,nombre:s.nombre}));setBusq(`${s.ticker} — ${s.nombre}`);setShowSug(false);},
+              style:{padding:'9px 14px',cursor:'pointer',display:'flex',justifyContent:'space-between',borderBottom:'.5px solid var(--brd)',fontSize:13},
+              onMouseEnter:e=>e.currentTarget.style.background='var(--bg2)',onMouseLeave:e=>e.currentTarget.style.background='var(--bg)'},
+              DIV(null,SPAN({style:{fontWeight:600,fontFamily:'monospace',marginRight:8}},s.ticker),SPAN({style:{color:'var(--txt2)'}},s.nombre)),
+              SPAN({style:{fontSize:11,padding:'2px 6px',borderRadius:4,background:'var(--info-bg)',color:'var(--info-txt)'}},s.mercado)
+            ))
+          )
+        ),
+        DIV({style:cG3},
+          DIV(null,LBL({style:cLbl},'Ticker'),INP({value:af.ticker,onChange:e=>setAf(a=>({...a,ticker:e.target.value.toUpperCase()}))})),
+          DIV(null,LBL({style:cLbl},'Mercado'),SEL({value:af.mercado,onChange:e=>setAf(a=>({...a,mercado:e.target.value}))},...['BVC','NYSE','NASDAQ','Fondo'].map(o=>OPT({key:o},o)))),
+          DIV(null,LBL({style:cLbl},'Empresa'),INP({value:af.nombre,onChange:e=>setAf(a=>({...a,nombre:e.target.value}))})),
+          DIV(null,LBL({style:cLbl},'Precio compra ($)'),INP({type:'number',value:af.precioCompra,onChange:e=>setAf(a=>({...a,precioCompra:e.target.value}))})),
+          DIV(null,LBL({style:cLbl},'Precio actual ($)'),INP({type:'number',value:af.precioActual,onChange:e=>setAf(a=>({...a,precioActual:e.target.value}))})),
+          DIV(null,LBL({style:cLbl},'Cantidad'),INP({type:'number',value:af.cantidad,onChange:e=>setAf(a=>({...a,cantidad:e.target.value}))})),
+          DIV(null,LBL({style:cLbl},'Dividendos ($)'),INP({type:'number',value:af.dividendosCOP,onChange:e=>setAf(a=>({...a,dividendosCOP:e.target.value}))})),
+          DIV({style:{display:'flex',alignItems:'flex-end'}},BTN({style:{...cBtnS,width:'100%',background:af.ticker&&af.precioCompra&&af.cantidad?'var(--teal)':'transparent',color:af.ticker&&af.precioCompra&&af.cantidad?'#fff':'var(--txt)',border:af.ticker&&af.precioCompra&&af.cantidad?'none':'.5px solid var(--brd2)'},
+            onClick:()=>{if(!af.ticker||!af.precioCompra||!af.cantidad)return;dispatch({type:'ADD_ACCION',a:{ticker:af.ticker,mercado:af.mercado,nombre:af.nombre,precioCompra:+af.precioCompra,precioActual:+af.precioActual||+af.precioCompra,cantidad:+af.cantidad,dividendosCOP:+af.dividendosCOP||0}});setAf({ticker:'',mercado:'BVC',nombre:'',precioCompra:'',precioActual:'',cantidad:'',dividendosCOP:'0'});setBusq('');}
+          },'+ Agregar acción'))
+        )
+      ),
+      DIV({style:cCard},inv.acciones.length===0?P({style:{fontSize:13,color:'var(--txt3)',padding:'1rem 0'}},'No hay posiciones aún.'):
+        DIV({style:{overflowX:'auto'}},TABLE({style:{width:'100%',borderCollapse:'collapse',fontSize:13,minWidth:660}},
+          THEAD(null,TR({style:{borderBottom:'.5px solid var(--brd)',background:'var(--bg2)'}},...['Ticker','Merc.','Empresa','P.Compra','P.Actual','Cant.','Valor','G/P','Rend.',''].map(h2=>TH({key:h2,style:cTh},h2)))),
+          TBODY(null,...inv.acciones.map(a=>{const gan=(a.precioActual-a.precioCompra)*a.cantidad+(a.dividendosCOP||0),rend=a.precioCompra>0?(a.precioActual-a.precioCompra)/a.precioCompra:0;
+            return TR({key:a.id,style:{borderBottom:'.5px solid var(--brd)'}},
+              TD({style:{...cTd,fontWeight:600,fontFamily:'monospace'}},[a.ticker]),TD({style:cTd},SPAN({style:{fontSize:10,padding:'2px 5px',borderRadius:4,background:'var(--info-bg)',color:'var(--info-txt)'}},a.mercado)),TD({style:{...cTd,fontSize:12,color:'var(--txt2)'}},[a.nombre]),
+              TD({style:cTd},INP({type:'number',style:{width:80},value:a.precioCompra,onChange:e=>dispatch({type:'UPD_ACCION',id:a.id,key:'precioCompra',val:+e.target.value||0})})),
+              TD({style:cTd},INP({type:'number',style:{width:80},value:a.precioActual,onChange:e=>dispatch({type:'UPD_ACCION',id:a.id,key:'precioActual',val:+e.target.value||0})})),
+              TD({style:cTd},[String(a.cantidad)]),TD({style:{...cTd,fontWeight:500}},cop(a.precioActual*a.cantidad)),
+              TD({style:{...cTd,fontWeight:500,color:gan>=0?'var(--success)':'var(--danger)'}},`${gan>=0?'+':''}${cop(gan)}`),
+              TD({style:cTd},SPAN({style:bdg(rend>=0?'ok':rend>-.1?'warn':'danger')},pct(rend))),
+              TD({style:cTd},BTN({style:{...cBtnD,fontSize:11,padding:'2px 6px'},onClick:()=>dispatch({type:'DEL_ACCION',id:a.id})},'✕'))
+            );
+          })),
+          TFOOT(null,TR({style:{borderTop:'.5px solid var(--brd2)',background:'var(--bg2)'}},TD({colSpan:6,style:{padding:'8px',fontWeight:500,fontSize:12,color:'var(--txt2)'}},'TOTAL'),TD({style:{...cTd,fontWeight:500,color:'var(--success)'}},cop(calc.totalAcciones)),TD({colSpan:3})))
+        ))
+      )
+    ),
+    sub==='crypto'&&DIV({style:{display:'flex',flexDirection:'column',gap:'1rem'}},
+      DIV({style:{...cCard,borderTop:'3px solid var(--crypto-txt)'}},
+        h(SecTitle,{title:'₿ Criptomonedas — Top 5',sub:`TRM ${cop(params.trm)} / USD`}),
+        DIV({style:{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(100px,1fr))',gap:8,marginBottom:16}},
+          ...CRYPTO_LIST.map(c=>{const pos=(inv.crypto||[]).find(x=>x.symbol===c.symbol);const val=pos?pos.cantidadUnits*pos.precioActualUSD*params.trm:0;
+            return DIV({key:c.symbol,style:{textAlign:'center',padding:'10px 6px',background:pos?'var(--crypto-bg)':'var(--bg2)',borderRadius:'var(--r-md)',border:pos?'.5px solid var(--crypto-txt)':'.5px solid var(--brd)'}},
+              P({style:{fontSize:15,fontWeight:700,fontFamily:'monospace',color:'var(--crypto-txt)',margin:'0 0 2px'}},c.symbol),P({style:{fontSize:11,color:'var(--txt3)',margin:'0 0 4px'}},c.nombre),
+              pos?P({style:{fontSize:12,fontWeight:600,color:'var(--success)',margin:0}},cop(val)):P({style:{fontSize:11,color:'var(--txt3)',margin:0}},'—')
+            );
+          })
+        ),
+        h(SecTitle,{title:'Nueva posición crypto'}),
+        DIV({style:cG3},
+          DIV(null,LBL({style:cLbl},'Criptomoneda'),SEL({value:crf.symbol,onChange:e=>{const c=CRYPTO_LIST.find(x=>x.symbol===e.target.value)||{};setCrf(f=>({...f,symbol:e.target.value,nombre:c.nombre||e.target.value}));}},
+            ...CRYPTO_LIST.map(c=>OPT({key:c.symbol,value:c.symbol},`${c.symbol} — ${c.nombre}`))
+          )),
+          DIV(null,LBL({style:cLbl},'Cantidad (unidades)'),INP({type:'number',step:'0.000001',value:crf.cantidadUnits,onChange:e=>setCrf(f=>({...f,cantidadUnits:e.target.value})),placeholder:'0.001'})),
+          DIV(null,LBL({style:cLbl},'Precio compra (USD)'),INP({type:'number',value:crf.precioCompraUSD,onChange:e=>setCrf(f=>({...f,precioCompraUSD:e.target.value})),placeholder:'67000'})),
+          DIV(null,LBL({style:cLbl},'Precio actual (USD)'),INP({type:'number',value:crf.precioActualUSD,onChange:e=>setCrf(f=>({...f,precioActualUSD:e.target.value})),placeholder:'70000'})),
+          crf.cantidadUnits&&crf.precioActualUSD?DIV({style:{...cMC,padding:'8px 12px'}},P({style:{fontSize:11,color:'var(--txt2)',margin:'0 0 2px'}},'Valor estimado'),P({style:{fontSize:14,fontWeight:600,color:'var(--success)',margin:0}},cop(+crf.cantidadUnits*+crf.precioActualUSD*params.trm))):DIV(null),
+          DIV({style:{display:'flex',alignItems:'flex-end'}},BTN({style:{...cBtnS,width:'100%',background:crf.cantidadUnits&&crf.precioCompraUSD?'var(--teal)':'transparent',color:crf.cantidadUnits&&crf.precioCompraUSD?'#fff':'var(--txt)',border:crf.cantidadUnits&&crf.precioCompraUSD?'none':'.5px solid var(--brd2)'},
+            onClick:()=>{if(!crf.cantidadUnits||!crf.precioCompraUSD)return;dispatch({type:'ADD_CRYPTO',c:{symbol:crf.symbol,nombre:crf.nombre,cantidadUnits:+crf.cantidadUnits,precioCompraUSD:+crf.precioCompraUSD,precioActualUSD:+crf.precioActualUSD||+crf.precioCompraUSD}});setCrf(f=>({...f,cantidadUnits:'',precioCompraUSD:'',precioActualUSD:''}));}
+          },'+ Agregar crypto'))
+        )
+      ),
+      (inv.crypto||[]).length>0&&DIV({style:cCard},
+        h(SecTitle,{title:`Posiciones crypto (${(inv.crypto||[]).length})`}),
+        DIV({style:{overflowX:'auto'}},TABLE({style:{width:'100%',borderCollapse:'collapse',fontSize:13,minWidth:620}},
+          THEAD(null,TR({style:{borderBottom:'.5px solid var(--brd)',background:'var(--bg2)'}},...['Moneda','Und.','P.Compra USD','P.Actual USD','Costo COP','Valor COP','G/P','Rend.',''].map(h2=>TH({key:h2,style:cTh},h2)))),
+          TBODY(null,...(inv.crypto||[]).map(c=>{const costo=c.cantidadUnits*c.precioCompraUSD*params.trm,valor=c.cantidadUnits*c.precioActualUSD*params.trm,gan=valor-costo,rend=costo>0?gan/costo:0;
+            return TR({key:c.id,style:{borderBottom:'.5px solid var(--brd)'}},
+              TD({style:{...cTd,fontWeight:700,fontFamily:'monospace',color:'var(--crypto-txt)'}},[c.symbol]),TD({style:{...cTd,fontSize:12}},[String(c.cantidadUnits)]),
+              TD({style:cTd},INP({type:'number',style:{width:88},value:c.precioCompraUSD,onChange:e=>dispatch({type:'UPD_CRYPTO',id:c.id,key:'precioCompraUSD',val:+e.target.value||0})})),
+              TD({style:cTd},INP({type:'number',style:{width:88},value:c.precioActualUSD,onChange:e=>dispatch({type:'UPD_CRYPTO',id:c.id,key:'precioActualUSD',val:+e.target.value||0})})),
+              TD({style:{...cTd,color:'var(--txt2)'}},cop(costo)),TD({style:{...cTd,fontWeight:500}},cop(valor)),
+              TD({style:{...cTd,fontWeight:500,color:gan>=0?'var(--success)':'var(--danger)'}},`${gan>=0?'+':''}${cop(gan)}`),
+              TD({style:cTd},SPAN({style:bdg(rend>=0?'ok':rend>-.1?'warn':'danger')},pct(rend))),
+              TD({style:cTd},BTN({style:{...cBtnD,fontSize:11,padding:'2px 6px'},onClick:()=>dispatch({type:'DEL_CRYPTO',id:c.id})},'✕'))
+            );
+          })),
+          TFOOT(null,TR({style:{borderTop:'.5px solid var(--brd2)',background:'var(--bg2)'}},
+            TD({colSpan:4,style:{padding:'8px',fontWeight:500,fontSize:12,color:'var(--txt2)'}},'TOTAL CRYPTO'),
+            TD({style:{...cTd,color:'var(--txt2)',fontWeight:500}},cop((inv.crypto||[]).reduce((s,c)=>s+c.cantidadUnits*c.precioCompraUSD*params.trm,0))),
+            TD({style:{...cTd,fontWeight:500,color:'var(--success)'}},cop(calc.totalCrypto)),TD({colSpan:3})
+          ))
+        ))
+      )
+    )
+  );
+}
+
+// ── Motor ──────────────────────────────────────────────────────────────────
+function Motor(){
+  const{data,calc}=useApp();
+  const results=useMemo(()=>RULES.map(r=>({...r.evaluate(calc,data),id:r.id})),[calc,data]);
+  const txtMap={ok:'var(--ok-txt)',warn:'var(--warn-txt)',danger:'var(--danger-txt)'};
+  const colorMap={ok:'#e8f5ee',warn:'#fef3e2',danger:'#fdeaea'};
+  const gastosMes=data.categorias.reduce((s,c)=>s+c.presupuesto,0)+calc.cuotasTotal;
+  const mesesR=gastosMes>0?(calc.saldoAhorroActual/gastosMes).toFixed(1):0;
+  const pres=data.categorias.reduce((s,c)=>s+c.presupuesto,0);
+  const diags=[{t:'DTI',v:pct(calc.dti),s:calc.dti<.3?'ok':calc.dti<.45?'warn':'danger'},{t:'Flujo caja',v:cop(calc.flujoCaja),s:calc.flujoCaja>0?'ok':calc.flujoCaja>-500000?'warn':'danger'},{t:'Pres./Ingreso',v:pct(pres/calc.ingresoNeto),s:pres>calc.ingresoNeto?'danger':pres>calc.ingresoNeto*.9?'warn':'ok'},{t:'Ahorro/Meta',v:pct(calc.saldoAhorroActual/data.ahorro.meta),s:calc.saldoAhorroActual/data.ahorro.meta>.5?'ok':'warn'},{t:'Emergencia',v:`${mesesR}m`,s:+mesesR>=3?'ok':+mesesR>=1?'warn':'danger'}];
+  const critCount=results.filter(r=>r.status==='danger').length,warnCount=results.filter(r=>r.status==='warn').length;
+  return DIV({style:{display:'flex',flexDirection:'column',gap:'1.5rem'}},
+    h(SecTitle,{title:'⚡ Motor inteligente',sub:'Diagnóstico proactivo · 5 reglas configurables'}),
+    DIV({style:{...cCard,background:critCount>0?'var(--danger-bg)':warnCount>0?'var(--warn-bg)':'var(--ok-bg)',border:'none',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:12}},
+      DIV(null,P({style:{fontSize:13,fontWeight:500,color:critCount>0?'var(--danger-txt)':warnCount>0?'var(--warn-txt)':'var(--ok-txt)',margin:'0 0 4px'}},critCount>0?`🚨 ${critCount} alerta${critCount>1?'s':''} crítica${critCount>1?'s':''} — acción requerida`:warnCount>0?`⚠️ ${warnCount} indicador${warnCount>1?'es':''} en atención`:'✅ Todos los indicadores saludables'),
+        P({style:{fontSize:12,opacity:.8,margin:0,color:critCount>0?'var(--danger-txt)':warnCount>0?'var(--warn-txt)':'var(--ok-txt)'}},'Se actualiza con cada cambio en tus datos')),
+      DIV({style:{display:'flex',gap:8}},
+        DIV({style:{textAlign:'center',padding:'8px 14px',background:'var(--danger-bg)',borderRadius:'var(--r-md)'}},P({style:{fontSize:18,fontWeight:700,color:'var(--danger)',margin:0}},critCount),P({style:{fontSize:10,color:'var(--danger-txt)',margin:0}},'Críticas')),
+        DIV({style:{textAlign:'center',padding:'8px 14px',background:'var(--warn-bg)',borderRadius:'var(--r-md)'}},P({style:{fontSize:18,fontWeight:700,color:'var(--warning)',margin:0}},warnCount),P({style:{fontSize:10,color:'var(--warn-txt)',margin:0}},'Atención')),
+        DIV({style:{textAlign:'center',padding:'8px 14px',background:'var(--ok-bg)',borderRadius:'var(--r-md)'}},P({style:{fontSize:18,fontWeight:700,color:'var(--success)',margin:0}},results.filter(r=>r.status==='ok').length),P({style:{fontSize:10,color:'var(--ok-txt)',margin:0}},'OK'))
+      )
+    ),
+    DIV({style:cG2},...diags.map(d=>DIV({key:d.t,style:cMC},P({style:{fontSize:12,color:'var(--txt2)',margin:'0 0 4px'}},d.t),P({style:{fontSize:19,fontWeight:500,margin:'0 0 4px'}},d.v),SPAN({style:bdg(d.s)},d.s==='ok'?'✅ OK':d.s==='warn'?'⚠️ Atención':'🔴 Crítico')))),
+    DIV({style:{display:'flex',flexDirection:'column',gap:12}},...results.map(r=>
+      DIV({key:r.id,style:{...cCard,borderLeft:`3px solid ${txtMap[r.status]}`}},
+        DIV({style:{display:'flex',gap:12}},SPAN({style:{fontSize:24,lineHeight:1,flexShrink:0}},r.emoji),
+          DIV({style:{flex:1}},
+            DIV({style:{display:'flex',alignItems:'center',gap:8,marginBottom:6,flexWrap:'wrap'}},P({style:{fontWeight:500,fontSize:14,margin:0}},r.title),SPAN({style:bdg(r.status)},r.status==='ok'?'Óptimo':r.status==='warn'?'Atención':'Crítico')),
+            P({style:{fontSize:13,color:'var(--txt2)',margin:'0 0 10px',lineHeight:1.6}},r.desc),
+            r.cuts&&r.cuts.length>0&&DIV({style:{background:'#fef0e8',borderRadius:'var(--r-md)',padding:'10px 12px',marginBottom:10}},
+              P({style:{fontSize:12,fontWeight:600,color:'#8B4000',margin:'0 0 8px'}},'📋 Reducción sugerida por categoría:'),
+              DIV({style:{overflowX:'auto'}},TABLE({style:{width:'100%',borderCollapse:'collapse',fontSize:12}},
+                THEAD(null,TR({style:{borderBottom:'.5px solid #e8c8a0'}},...['Categoría','Actual','Sugerido','Reducción'].map(h2=>TH({key:h2,style:{...cTh,color:'#8B4000',fontSize:11}},h2)))),
+                TBODY(null,...r.cuts.map(c=>TR({key:c.nombre,style:{borderBottom:'.5px solid #f0d8b8'}},
+                  TD({style:{...cTd,fontWeight:500}},[c.nombre]),TD({style:{...cTd,color:'var(--danger)'}},cop(c.actual)),
+                  TD({style:{...cTd,color:'var(--success)',fontWeight:500}},cop(c.sugerido)),
+                  TD({style:cTd},SPAN({style:{...bdg('danger'),fontSize:10}},`−${cop(c.corte)}`))
+                ))),
+                TFOOT(null,TR({style:{borderTop:'.5px solid #e8c8a0',background:'#fdebd0'}},
+                  TD({style:{padding:'6px 8px',fontSize:11,fontWeight:600,color:'#8B4000'}},'TOTAL'),TD(null),TD(null),
+                  TD({style:{...cTd,fontWeight:700,color:'var(--danger)'}},cop(r.cuts.reduce((s,c)=>s+c.corte,0)))
+                ))
+              ))
+            ),
+            DIV({style:{background:colorMap[r.status],borderRadius:'var(--r-sm)',padding:'8px 12px'}},P({style:{fontSize:12,color:txtMap[r.status],margin:0,lineHeight:1.6}},h('strong',null,'→ Acción: '),r.accion))
+          )
+        )
+      )
+    ))
+  );
+}
+
+// ── Config ─────────────────────────────────────────────────────────────────
+function Config(){
+  const{data,dispatch}=useApp();
+  const fld=(lb,key,extra={})=>DIV(null,LBL({style:cLbl},lb),INP({type:'number',...extra,value:data.params[key],onChange:e=>dispatch({type:'UPD_PARAM',key,val:+e.target.value||0})}));
+  return DIV({style:{display:'flex',flexDirection:'column',gap:'1.5rem'}},
+    h(SecTitle,{title:'Configuración'}),
+    DIV({style:cCard},h(SecTitle,{title:'Ingresos y parámetros'}),DIV({style:cG3},fld('Salario base ($)','salarioBase'),fld('% Seg. Social','pctSS',{step:'.01'}),fld('Ing. adicional ($)','ingAdicional'),fld('TRM (COP/USD)','trm'),fld('Inflación EA','inflacion',{step:'.001'}),
+      DIV(null,LBL({style:cLbl},'Efectivo ($)'),INP({type:'number',value:data.efectivo,onChange:e=>dispatch({type:'UPD_EFECTIVO',val:+e.target.value||0})}))
+    )),
+ DIV({style:cCard},
+      h(SecTitle,{title:'Gestión de datos y Nube'}),
+      DIV({style:{display:'flex', gap:10, flexWrap:'wrap', marginTop:10}},
+        // Botón Azul para importar
+        BTN({
+          style:{...cBtnS, flex:1, background:'#4285F4', color:'#fff', border:'none', fontWeight:600, minWidth:'160px', padding:'10px'},
+          onClick: loadDataFromSheets
+        }, "📥 Importar de Google Sheets"),
+        
+        // Botón Rojo para resetear
+        BTN({
+          style:{...cBtnD, flex:1, minWidth:'160px', padding:'10px'},
+          onClick:()=>{if(confirm('¿Restablecer todos los datos locales?')){dispatch({type:'RESET'});localStorage.removeItem(OKEY);}}
+        }, "Restablecer Locales")
+      ),
+      P({style:{fontSize:11, color:'var(--txt3)', marginTop:8, fontStyle:'italic'}}, "💡 La sincronización hacia la nube es automática cada vez que realizas un cambio.")
+    )
+  );
+}
+
+// ── App ────────────────────────────────────────────────────────────────────
+function App(){
+  const[data,dispatch]=useReducer(reducer,null,()=>loadLS()||DEF);
+  const calc=useMemo(()=>calcAll(data),[data]);
+  useEffect(()=>saveLS(data),[data]);
+  useEffect(() => {
+    if (data.movimientos && data.movimientos.length > 0) {
+      const timer = setTimeout(() => {
+        syncDataToSheets(data);
+      }, 3000); 
+      return () => clearTimeout(timer);
+    }
+  }, [data]);
+  const[tab,setTab]=useState('dashboard');
+  const[showOnboarding,setShowOnboarding]=useState(!wasOnboarded());
+  const alertCount=useMemo(()=>RULES.map(r=>r.evaluate(calc,data)).filter(r=>r.status==='danger').length,[calc,data]);
+  const TABS=[{id:'dashboard',l:'Dashboard'},{id:'creditos',l:'Créditos'},{id:'gastos',l:'Gastos'},{id:'movimientos',l:'Movimientos'},{id:'ahorro',l:'Ahorro'},{id:'inversiones',l:'Inversiones'},{id:'motor',l:'⚡ Motor'},{id:'config',l:'Configurar'}];
+  const PAGES={dashboard:()=>h(Dashboard,{onGoToMotor:()=>setTab('motor')}),creditos:Creditos,gastos:Gastos,movimientos:Movimientos,ahorro:Ahorro,inversiones:Inversiones,motor:Motor,config:Config};
+  return h(AppCtx.Provider,{value:{data,calc,dispatch}},
+    DIV(null,
+      showOnboarding&&h(Onboarding,{onComplete:()=>setShowOnboarding(false)}),
+      DIV({className:'top-nav',style:{marginBottom:'1.25rem'}},
+        DIV({style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'1rem',flexWrap:'wrap',gap:8,background:'linear-gradient(135deg,#0d1a2e 0%,#0f2444 60%,#0d1a2e 100%)',borderRadius:'var(--r-lg)',padding:'14px 20px',boxShadow:'0 4px 24px rgba(13,26,46,.35)'}},
+          DIV({style:{display:'flex',alignItems:'center',gap:14}},
+            // ── SHEENA Financial logo (SVG inline) ──
+            h('svg',{width:52,height:52,viewBox:'0 0 52 52',xmlns:'http://www.w3.org/2000/svg'},
+              h('defs',null,
+                h('linearGradient',{id:'lg1',x1:'0%',y1:'0%',x2:'100%',y2:'100%'},
+                  h('stop',{offset:'0%',stopColor:'#4ABFFF'}),h('stop',{offset:'100%',stopColor:'#1A6FD4'})
+                ),
+                h('linearGradient',{id:'lg2',x1:'0%',y1:'0%',x2:'100%',y2:'100%'},
+                  h('stop',{offset:'0%',stopColor:'#FFD060'}),h('stop',{offset:'100%',stopColor:'#F47B00'})
+                ),
+                h('filter',{id:'glow'},
+                  h('feGaussianBlur',{stdDeviation:'1.5',result:'blur'}),
+                  h('feComposite',{in:'SourceGraphic',in2:'blur',operator:'over'})
+                )
+              ),
+              // Triángulo izquierdo azul
+              h('polygon',{points:'8,46 26,6 26,46',fill:'url(#lg1)',opacity:'.95'}),
+              // Triángulo derecho naranja
+              h('polygon',{points:'26,6 44,46 26,46',fill:'url(#lg2)',opacity:'.95'}),
+              // Recorte centro (forma A interna)
+              h('polygon',{points:'26,18 20,46 32,46',fill:'#0d1a2e'}),
+              // Brillo superior
+              h('polygon',{points:'24,6 26,6 27,10 25,10',fill:'#fff',opacity:'.5'}),
+              // Línea divisora
+              h('line',{x1:'26',y1:'10',x2:'26',y2:'46',stroke:'#0d1a2e',strokeWidth:'1.5'})
+            ),
+            DIV(null,
+              h('div',{style:{fontSize:20,fontWeight:800,color:'#fff',letterSpacing:1,lineHeight:1,fontFamily:'system-ui,sans-serif',textShadow:'0 2px 8px rgba(74,191,255,.3)'}},'SHEENA'),
+              h('div',{style:{fontSize:13,fontWeight:400,color:'#4ABFFF',letterSpacing:3,lineHeight:1.2,fontFamily:'system-ui,sans-serif'},'data-text':'Financial'},'Financial')
+            )
+          ),
+          alertCount>0&&BTN({style:{...cBtnD,fontSize:12,display:'flex',alignItems:'center',gap:6,border:'.5px solid rgba(224,160,160,.5)',color:'#ff9090'},onClick:()=>setTab('motor')},SPAN({style:{animation:'pulse 1.5s infinite',display:'inline-block'}},'🚨'),`${alertCount} alerta${alertCount>1?'s':''}`)
+        ),
+        DIV({style:{display:'flex',gap:4,flexWrap:'wrap',background:'var(--bg2)',padding:4,borderRadius:'var(--r-lg)'}},
+          ...TABS.map(t=>BTN({key:t.id,style:tabSt(tab===t.id),onClick:()=>setTab(t.id)},t.id==='motor'&&alertCount>0?`${t.l} (${alertCount})`:t.l))
+        )
+      ),
+      h(PAGES[tab]||PAGES.dashboard),
+      DIV({className:'bnav'},
+        ...TABS.map(t=>BTN({key:t.id,className:tab===t.id?'on':'',onClick:()=>setTab(t.id)},
+          DIV({className:'nav-icon'},TAB_ICONS[t.id]),SPAN(null,t.id==='motor'&&alertCount>0?`Motor(${alertCount})`:TAB_LABELS[t.id])
+        ))
+      )
+    )
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(h(App));
+</script>
+</body>
+</html>
